@@ -1,61 +1,56 @@
 // ============================================================
 //  BERDSK_PIZZA — КЛИЕНТ
+//  Полностью переписанный модуль
 // ============================================================
 
 let cart = [];
+let currentCategory = "Все";
+let activePromocode = null;
+let activeBonusAmount = 0;
+
+// ============================================================
+//  НАВИГАЦИЯ
+// ============================================================
 
 function navigateTo(page) {
-  const links = document.querySelectorAll('.header__link[data-page]');
-  links.forEach(function(link) { link.classList.remove('active'); });
-  const activeLink = document.querySelector('.header__link[data-page="' + page + '"]');
+  document.querySelectorAll('.header__link[data-page]').forEach((link) => {
+    link.classList.remove('active');
+  });
+  const activeLink = document.querySelector(
+    `.header__link[data-page="${page}"]`
+  );
   if (activeLink) activeLink.classList.add('active');
+
   switch (page) {
-    case 'catalog': renderCatalog(); break;
-    case 'cart': renderCart(); break;
-    case 'orders': renderOrders(); break;
-    case 'bonuses': renderBonuses(); break;
-    default: renderCatalog();
+    case 'catalog':
+      renderCatalog(currentCategory);
+      break;
+    case 'cart':
+      renderCart();
+      break;
+    case 'orders':
+      renderOrders();
+      break;
+    case 'bonuses':
+      renderBonuses();
+      break;
+    default:
+      renderCatalog(currentCategory);
   }
 }
 
-async function renderCatalog(category) {
-  if (typeof category === 'undefined') category = 'Все';
-  const container = document.getElementById('content');
-  if (!container) return;
-  try {
-    const products = await getProducts();
-    const categories = ['Все'];
-    for (var i = 0; i < products.length; i++) {
-      if (categories.indexOf(products[i].category) === -1) {
-        categories.push(products[i].category);
-      }
-    }
-    var filtered = products;
-    if (category !== 'Все') {
-      filtered = products.filter(function(p) { return p.category === category; });
-    }
-    var user = getCurrentUser();
-    var html = '<div class="catalog"><div class="catalog__greeting">🍕 Привет, ' + (user ? user.name : 'гость') + '!</div><div class="catalog__subtitle">Что сегодня закажешь?</div><div class="catalog__categories">';
-    for (var j = 0; j < categories.length; j++) {
-      var active = categories[j] === category ? 'active' : '';
-      html += '<button class="catalog__category ' + active + '" onclick="renderCatalog(\'' + categories[j] + '\')">' + categories[j] + '</button>';
-    }
-    html += '</div><div class="catalog__grid">';
-    for (var k = 0; k < filtered.length; k++) {
-      var p = filtered[k];
-      html += '<div class="product-card"><div class="product-card__image">' + (p.image || '🍕') + '</div><div class="product-card__body"><div class="product-card__name">' + p.name + '</div><div class="product-card__description">' + (p.description || '') + '</div><div class="product-card__bottom"><span class="product-card__price">' + p.price + ' ₽</span><button class="product-card__add" onclick="addToCart(' + p.id + '); updateCartCount();">+ В корзину</button></div></div></div>';
-    }
-    html += '</div></div>';
-    container.innerHTML = html;
-  } catch (error) {
-    container.innerHTML = '<p style="color:#dc3545;">⚠️ Ошибка: ' + error.message + '</p>';
-  }
-}
+// ============================================================
+//  КОРЗИНА
+// ============================================================
 
 function loadCart() {
-  var saved = localStorage.getItem('berdskCart');
+  const saved = localStorage.getItem('berdskCart');
   if (saved) {
-    try { cart = JSON.parse(saved); } catch (e) { cart = []; }
+    try {
+      cart = JSON.parse(saved);
+    } catch (e) {
+      cart = [];
+    }
   }
   return cart;
 }
@@ -66,255 +61,549 @@ function saveCart() {
 }
 
 function updateCartCount() {
-  var total = 0;
-  for (var i = 0; i < cart.length; i++) {
-    total += cart[i].quantity;
-  }
-  var el = document.getElementById('cartCount');
+  const total = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const el = document.getElementById('cartCount');
   if (el) el.textContent = total;
 }
 
-function addToCart(productId, quantity) {
-  if (typeof quantity === 'undefined') quantity = 1;
-  var existing = null;
-  for (var i = 0; i < cart.length; i++) {
-    if (cart[i].productId === productId) { existing = cart[i]; break; }
-  }
+function addToCart(productId, quantity = 1) {
+  const existing = cart.find((item) => item.productId === productId);
   if (existing) {
     existing.quantity += quantity;
   } else {
-    cart.push({ productId: productId, quantity: quantity });
+    cart.push({ productId, quantity });
   }
   saveCart();
 }
 
 function removeFromCart(productId) {
-  var newCart = [];
-  for (var i = 0; i < cart.length; i++) {
-    if (cart[i].productId !== productId) newCart.push(cart[i]);
-  }
-  cart = newCart;
+  cart = cart.filter((item) => item.productId !== productId);
   saveCart();
 }
 
 function updateQuantity(productId, quantity) {
-  if (quantity <= 0) { removeFromCart(productId); return; }
-  for (var i = 0; i < cart.length; i++) {
-    if (cart[i].productId === productId) { cart[i].quantity = quantity; break; }
+  if (quantity <= 0) {
+    removeFromCart(productId);
+    return;
   }
+  const item = cart.find((i) => i.productId === productId);
+  if (item) {
+    item.quantity = quantity;
+    saveCart();
+  }
+}
+
+function clearCart() {
+  cart = [];
+  activePromocode = null;
+  activeBonusAmount = 0;
   saveCart();
 }
 
-function clearCart() { cart = []; saveCart(); }
+// ============================================================
+//  КАТАЛОГ
+// ============================================================
+
+async function renderCatalog(category = 'Все') {
+  currentCategory = category;
+  const container = document.getElementById('content');
+  if (!container) return;
+
+  try {
+    const products = await getProducts();
+    const activeProducts = products.filter((p) => !p.is_stopped && p.is_active !== false);
+
+    // Собираем категории
+    const categories = ['Все'];
+    activeProducts.forEach((p) => {
+      if (!categories.includes(p.category)) {
+        categories.push(p.category);
+      }
+    });
+
+    // Фильтруем
+    let filtered = activeProducts;
+    if (category !== 'Все') {
+      filtered = activeProducts.filter((p) => p.category === category);
+    }
+
+    const user = getCurrentUser();
+    const greeting = user ? `Привет, ${user.name}!` : 'Привет, гость!';
+
+    let html = `
+      <div class="catalog">
+        <div class="catalog__greeting">🍕 ${greeting}</div>
+        <div class="catalog__subtitle">Что сегодня закажешь?</div>
+        <div class="catalog__categories">
+    `;
+
+    categories.forEach((cat) => {
+      const active = cat === category ? 'active' : '';
+      html += `<button class="catalog__category ${active}" onclick="renderCatalog('${cat}')">${cat}</button>`;
+    });
+
+    html += `</div><div class="catalog__grid">`;
+
+    if (filtered.length === 0) {
+      html += `<p style="color:#999;">Товары не найдены</p>`;
+    } else {
+      filtered.forEach((p) => {
+        html += `
+          <div class="product-card">
+            <div class="product-card__image">${p.image || '🍕'}</div>
+            <div class="product-card__body">
+              <div class="product-card__name">${p.name}</div>
+              <div class="product-card__description">${p.description || ''}</div>
+              <div class="product-card__bottom">
+                <span class="product-card__price">${p.price} ₽</span>
+                <button class="product-card__add" onclick="addToCart(${p.id})">+ В корзину</button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    html += `</div></div>`;
+    container.innerHTML = html;
+  } catch (error) {
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
+  }
+}
+
+// ============================================================
+//  КОРЗИНА (ОТОБРАЖЕНИЕ)
+// ============================================================
 
 async function getCartDetails() {
-  var products = await getProducts();
-  var details = [];
-  for (var i = 0; i < cart.length; i++) {
-    var product = null;
-    for (var j = 0; j < products.length; j++) {
-      if (products[j].id === cart[i].productId) { product = products[j]; break; }
-    }
-    if (product) {
+  const products = await getProducts();
+  const details = [];
+
+  for (const item of cart) {
+    const product = products.find((p) => p.id === item.productId);
+    if (product && !product.is_stopped) {
       details.push({
-        productId: cart[i].productId,
-        quantity: cart[i].quantity,
+        productId: item.productId,
+        quantity: item.quantity,
         name: product.name,
         price: product.price,
         image: product.image || '🍕',
-        total: cart[i].quantity * product.price
+        total: item.quantity * product.price,
       });
     }
   }
   return details;
 }
 
-function calculateTotal(details) {
-  var sum = 0;
-  for (var i = 0; i < details.length; i++) {
-    sum += details[i].total;
-  }
-  return sum;
+function calculateSubtotal(details) {
+  return details.reduce((sum, item) => sum + item.total, 0);
 }
 
 async function renderCart() {
-  var container = document.getElementById('content');
+  const container = document.getElementById('content');
   if (!container) return;
-  var cartItems = await getCartDetails();
+
+  const cartItems = await getCartDetails();
+
   if (cartItems.length === 0) {
-    container.innerHTML = '<div class="cart"><h1 class="cart__title">🛒 Корзина</h1><div class="cart__empty"><span class="cart__empty-icon">🛒</span><h2>Корзина пуста</h2><p>Добавьте товары из каталога</p><button class="btn btn--primary" onclick="navigateTo(\'catalog\')">Перейти в каталог</button></div></div>';
+    container.innerHTML = `
+      <div class="cart">
+        <h1 class="cart__title">🛒 Корзина</h1>
+        <div class="cart__empty">
+          <span class="cart__empty-icon">🛒</span>
+          <h2>Корзина пуста</h2>
+          <p>Добавьте товары из каталога</p>
+          <button class="btn btn--primary" onclick="navigateTo('catalog')">Перейти в каталог</button>
+        </div>
+      </div>
+    `;
     return;
   }
-  var total = calculateTotal(cartItems);
-  var html = '<div class="cart"><h1 class="cart__title">🛒 Корзина</h1>';
-  for (var i = 0; i < cartItems.length; i++) {
-    var item = cartItems[i];
-    html += '<div class="cart__item"><div class="cart__item-info"><span style="font-size:28px;">' + item.image + '</span><span class="cart__item-name">' + item.name + '</span><div class="cart__item-quantity"><button onclick="updateQuantity(' + item.productId + ', ' + (item.quantity - 1) + '); renderCart();">−</button><span>' + item.quantity + '</span><button onclick="updateQuantity(' + item.productId + ', ' + (item.quantity + 1) + '); renderCart();">+</button></div><span>' + item.price + ' ₽</span></div><div class="cart__item-total">' + item.total + ' ₽</div><button class="cart__item-remove" onclick="removeFromCart(' + item.productId + '); renderCart();">✕</button></div>';
-  }
-  html += '<div class="cart__summary"><div class="cart__summary-row"><span>Итого</span><span>' + total + ' ₽</span></div><div class="cart__summary-actions"><button class="btn btn--primary" onclick="checkout()">📦 Оформить заказ</button><button class="btn btn--danger" onclick="clearCart(); renderCart();">🧹 Очистить</button><button class="btn btn--secondary" onclick="navigateTo(\'catalog\')">← Продолжить покупки</button></div></div></div>';
+
+  const subtotal = calculateSubtotal(cartItems);
+
+  let html = `<div class="cart"><h1 class="cart__title">🛒 Корзина</h1>`;
+
+  cartItems.forEach((item) => {
+    html += `
+      <div class="cart__item">
+        <div class="cart__item-info">
+          <span style="font-size:28px;">${item.image}</span>
+          <span class="cart__item-name">${item.name}</span>
+          <div class="cart__item-quantity">
+            <button onclick="updateQuantity(${item.productId}, ${item.quantity - 1}); renderCart();">−</button>
+            <span>${item.quantity}</span>
+            <button onclick="updateQuantity(${item.productId}, ${item.quantity + 1}); renderCart();">+</button>
+          </div>
+          <span>${item.price} ₽</span>
+        </div>
+        <div class="cart__item-total">${item.total} ₽</div>
+        <button class="cart__item-remove" onclick="removeFromCart(${item.productId}); renderCart();">✕</button>
+      </div>
+    `;
+  });
+
+  html += `
+    <div class="cart__summary">
+      <div class="cart__summary-row">
+        <span>Сумма заказа</span>
+        <span>${subtotal} ₽</span>
+      </div>
+      ${activeBonusAmount > 0 ? `
+        <div class="cart__summary-row">
+          <span>Бонусы (списание)</span>
+          <span style="color:#28a745;">−${activeBonusAmount} ₽</span>
+        </div>
+      ` : ''}
+      ${activePromocode ? `
+        <div class="cart__summary-row">
+          <span>Промокод ${activePromocode.code}</span>
+          <span style="color:#28a745;">−${activePromocode.amount} ₽</span>
+        </div>
+      ` : ''}
+      <div class="cart__summary-row total">
+        <span>Итого</span>
+        <span>${Math.max(0, subtotal - activeBonusAmount - (activePromocode?.amount || 0))} ₽</span>
+      </div>
+      <div class="cart__summary-actions">
+        <button class="btn btn--primary" onclick="checkout()">📦 Оформить заказ</button>
+        <button class="btn btn--danger" onclick="clearCart(); renderCart();">🧹 Очистить</button>
+        <button class="btn btn--secondary" onclick="navigateTo('catalog')">← Продолжить покупки</button>
+      </div>
+    </div>
+  </div>`;
+
   container.innerHTML = html;
 }
 
+// ============================================================
+//  ОФОРМЛЕНИЕ ЗАКАЗА
+// ============================================================
+
 async function checkout() {
-  var user = getCurrentUser();
+  const user = getCurrentUser();
   if (!user) {
     alert('⚠️ Для оформления заказа необходимо авторизоваться');
-    document.getElementById('authModal').classList.add('active');
+    const authModal = document.getElementById('authModal');
+    if (authModal) authModal.classList.add('active');
     return;
   }
-  var points = await getPickupPoints();
-  if (points.length === 0) { alert('❌ Нет доступных пунктов выдачи'); return; }
-  var cartItems = await getCartDetails();
-  if (cartItems.length === 0) { alert('❌ Корзина пуста'); return; }
-  var total = calculateTotal(cartItems);
-  var itemsHtml = '';
-  for (var i = 0; i < cartItems.length; i++) {
-    var item = cartItems[i];
-    itemsHtml += '<div class="item"><span>' + item.image + ' ' + item.name + ' × ' + item.quantity + '</span><span>' + item.total + ' ₽</span></div>';
+
+  const cartItems = await getCartDetails();
+  if (cartItems.length === 0) {
+    alert('❌ Корзина пуста');
+    return;
   }
-  var pointsHtml = '';
-  for (var i = 0; i < points.length; i++) {
-    pointsHtml += '<option value="' + points[i].id + '">' + points[i].name + ' — ' + points[i].address + '</option>';
+
+  const subtotal = calculateSubtotal(cartItems);
+  const totalAfterDiscounts = Math.max(
+    0,
+    subtotal - activeBonusAmount - (activePromocode?.amount || 0)
+  );
+
+  const container = document.getElementById('content');
+
+  // Получаем пункты выдачи
+  const points = await getPickupPoints();
+  const activePoints = points.filter((p) => p.is_active !== false);
+
+  if (activePoints.length === 0) {
+    alert('❌ Нет доступных пунктов выдачи');
+    return;
   }
-  var container = document.getElementById('content');
-  container.innerHTML = '<div class="checkout"><h1>📦 Оформление заказа</h1><div class="checkout__form"><div class="checkout__order-summary"><h4 style="margin-bottom:8px;">📋 Состав заказа</h4>' + itemsHtml + '<div class="checkout__total">Итого: ' + total + ' ₽</div></div><div class="form-group"><label>📍 Выберите пункт выдачи</label><select id="pickupPoint">' + pointsHtml + '</select></div><div class="form-group"><label>📞 Ваш номер телефона</label><input type="tel" id="clientPhone" placeholder="+7 (999) 123-45-67" required /></div><div class="form-group"><label>💬 Комментарий</label><input type="text" id="orderComment" placeholder="Например: без лука" /></div><button class="btn btn--success btn--full" onclick="submitOrder()">✅ Подтвердить заказ</button><button class="btn btn--secondary btn--full" style="margin-top:8px;" onclick="renderCart()">← Вернуться</button></div></div>';
+
+  const pointsHtml = activePoints
+    .map(
+      (p) => `<option value="${p.id}">${p.name} — ${p.address}</option>`
+    )
+    .join('');
+
+  // Состав заказа
+  const itemsHtml = cartItems
+    .map(
+      (item) =>
+        `<div class="item"><span>${item.image} ${item.name} × ${item.quantity}</span><span>${item.total} ₽</span></div>`
+    )
+    .join('');
+
+  container.innerHTML = `
+    <div class="checkout">
+      <h1>📦 Оформление заказа</h1>
+      <div class="checkout__form">
+        <div class="checkout__order-summary">
+          <h4 style="margin-bottom:8px;">📋 Состав заказа</h4>
+          ${itemsHtml}
+          <div class="checkout__total">
+            Итого: ${totalAfterDiscounts} ₽
+            ${activeBonusAmount > 0 ? `<span style="font-size:14px; color:#28a745;"> (включая бонусы −${activeBonusAmount} ₽)</span>` : ''}
+            ${activePromocode ? `<span style="font-size:14px; color:#28a745;"> (промокод −${activePromocode.amount} ₽)</span>` : ''}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Тип заказа</label>
+          <select id="orderType" onchange="toggleDeliveryAddress()">
+            <option value="pickup">🏪 Самовывоз</option>
+            <option value="delivery">🛵 Доставка (+150 ₽)</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="pickupPointGroup">
+          <label>📍 Выберите пункт выдачи</label>
+          <select id="pickupPoint">${pointsHtml}</select>
+        </div>
+
+        <div class="form-group" id="deliveryAddressGroup" style="display:none;">
+          <label>🏠 Адрес доставки</label>
+          <input type="text" id="deliveryAddress" placeholder="ул. Ленина, 15, кв. 42" />
+        </div>
+
+        <div class="form-group">
+          <label>📞 Ваш номер телефона</label>
+          <input type="tel" id="clientPhone" placeholder="+7 (999) 123-45-67" required />
+        </div>
+
+        <div class="form-group">
+          <label>💬 Комментарий</label>
+          <input type="text" id="orderComment" placeholder="Например: без лука" />
+        </div>
+
+        <button class="btn btn--success btn--full" onclick="submitOrder()">✅ Подтвердить заказ</button>
+        <button class="btn btn--secondary btn--full" style="margin-top:8px;" onclick="renderCart()">← Вернуться</button>
+      </div>
+    </div>
+  `;
+}
+
+function toggleDeliveryAddress() {
+  const orderType = document.getElementById('orderType').value;
+  const pickupGroup = document.getElementById('pickupPointGroup');
+  const deliveryGroup = document.getElementById('deliveryAddressGroup');
+
+  if (orderType === 'delivery') {
+    pickupGroup.style.display = 'none';
+    deliveryGroup.style.display = 'block';
+  } else {
+    pickupGroup.style.display = 'block';
+    deliveryGroup.style.display = 'none';
+  }
 }
 
 async function submitOrder() {
-  var user = getCurrentUser();
-  var pickupPointId = parseInt(document.getElementById('pickupPoint').value);
-  var clientPhone = document.getElementById('clientPhone').value.trim();
-  var comment = document.getElementById('orderComment').value.trim() || '';
-  var cartItems = await getCartDetails();
-  var total = calculateTotal(cartItems);
-  if (!clientPhone) { alert('⚠️ Введите номер телефона'); return; }
-  if (cartItems.length === 0) { alert('❌ Корзина пуста'); return; }
-  var isLargeOrder = false;
-  for (var i = 0; i < cartItems.length; i++) {
-    if (cartItems[i].quantity > 30) isLargeOrder = true;
+  const user = getCurrentUser();
+  if (!user) {
+    alert('❌ Необходимо авторизоваться');
+    return;
   }
-  var orderData = {
+
+  const orderType = document.getElementById('orderType').value;
+  const clientPhone = document.getElementById('clientPhone').value.trim();
+  const comment = document.getElementById('orderComment').value.trim() || '';
+
+  if (!clientPhone) {
+    alert('⚠️ Введите номер телефона');
+    return;
+  }
+
+  let pickupPointId = null;
+  let deliveryAddress = null;
+  let deliveryCost = 0;
+
+  if (orderType === 'pickup') {
+    pickupPointId = parseInt(document.getElementById('pickupPoint').value);
+    if (!pickupPointId) {
+      alert('⚠️ Выберите пункт выдачи');
+      return;
+    }
+  } else {
+    deliveryAddress = document.getElementById('deliveryAddress').value.trim();
+    if (!deliveryAddress) {
+      alert('⚠️ Введите адрес доставки');
+      return;
+    }
+    deliveryCost = 150;
+  }
+
+  const cartItems = await getCartDetails();
+  if (cartItems.length === 0) {
+    alert('❌ Корзина пуста');
+    return;
+  }
+
+  const subtotal = calculateSubtotal(cartItems);
+  const totalWithDelivery = subtotal + deliveryCost;
+  const finalTotal = Math.max(
+    0,
+    totalWithDelivery - activeBonusAmount - (activePromocode?.amount || 0)
+  );
+
+  // Проверка крупного заказа (общее количество > 30)
+  const totalQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const isLargeOrder = totalQuantity > 30;
+
+  const orderData = {
     user_id: user.id,
-    items: cartItems.map(function(item) { return { productId: item.productId, quantity: item.quantity, price: item.price }; }),
-    total: total,
+    items: cartItems.map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      price: item.price,
+    })),
+    total: finalTotal,
+    order_type: orderType,
+    delivery_address: deliveryAddress,
+    delivery_cost: deliveryCost,
     pickup_point_id: pickupPointId,
     status: isLargeOrder ? 'Ожидает подтверждения' : 'Новый',
     client_phone: clientPhone,
     client_name: user.name || user.login,
-    comment: comment
+    comment: comment,
+    created_by: user.id,
   };
+
   try {
-    await createOrder(orderData);
+    const createdOrder = await createOrder(orderData);
+
+    // Если использовался промокод — помечаем как использованный
+    if (activePromocode) {
+      await usePromocode(activePromocode.code, createdOrder.id);
+    }
+
+    // Если списывались бонусы — создаём транзакцию
+    if (activeBonusAmount > 0) {
+      await spendBonuses(user.id, activeBonusAmount, createdOrder.id);
+    }
+
     clearCart();
-    alert('✅ Заказ оформлен!' + (isLargeOrder ? ' ⚠️ Ожидайте подтверждения оператора.' : ''));
+    alert(
+      '✅ Заказ оформлен!' +
+        (isLargeOrder ? ' ⚠️ Ожидайте подтверждения оператора.' : '')
+    );
     navigateTo('orders');
   } catch (error) {
     alert('❌ Ошибка: ' + error.message);
   }
 }
 
-async function renderOrders() {
-  var container = document.getElementById('content');
-  if (!container) return;
-  var user = getCurrentUser();
-  if (!user) {
-    container.innerHTML = '<div class="orders"><h1 class="orders__title">📋 Мои заказы</h1><p style="color:#999;">Авторизуйтесь для просмотра заказов</p></div>';
-    return;
-  }
+// ============================================================
+//  ПРИМЕНЕНИЕ ПРОМОКОДА И БОНУСОВ
+// ============================================================
+
+async function applyPromocode() {
+  const code = prompt('Введите промокод:');
+  if (!code) return;
+
   try {
-    var allOrders = await getOrders();
-    var userOrders = [];
-    for (var i = 0; i < allOrders.length; i++) {
-      if (allOrders[i].user_id === user.id) userOrders.push(allOrders[i]);
-    }
-    userOrders.sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); });
-    if (userOrders.length === 0) {
-      container.innerHTML = '<div class="orders"><h1 class="orders__title">📋 Мои заказы</h1><p style="color:#999;">У вас пока нет заказов</p></div>';
+    const promocode = await getPromocodeByCode(code);
+    if (!promocode) {
+      alert('❌ Промокод не найден');
       return;
     }
-    var products = await getProducts();
-    var points = await getPickupPoints();
-    var html = '<div class="orders"><h1 class="orders__title">📋 Мои заказы</h1>';
-    for (var i = 0; i < userOrders.length; i++) {
-      var order = userOrders[i];
-      var point = null;
-      for (var j = 0; j < points.length; j++) {
-        if (points[j].id === order.pickup_point_id) { point = points[j]; break; }
-      }
-      var itemsHtml = '';
-      for (var j = 0; j < order.items.length; j++) {
-        var item = order.items[j];
-        var product = null;
-        for (var k = 0; k < products.length; k++) {
-          if (products[k].id === item.productId) { product = products[k]; break; }
-        }
-        itemsHtml += (product ? product.name : 'Товар') + ' × ' + item.quantity + (j < order.items.length - 1 ? '; ' : '');
-      }
-      var statusLabels = {
-        'Новый': '🟡 Новый',
-        'Ожидает подтверждения': '🟠 Ожидает',
-        'Готовится': '🟠 Готовится',
-        'Готов к выдаче': '🟢 Готов',
-        'В пути': '🔵 В пути',
-        'Доставлен': '✅ Доставлен',
-        'Выдан': '✅ Выдан',
-        'Отменен': '❌ Отменен',
-        'Возврат': '🔄 Возврат'
-      };
-      html += '<div class="order-card" onclick="showOrderTracking(' + order.id + ')"><div class="order-card__header"><span class="order-card__id">Заказ #' + order.id + '</span><span class="order-card__status">' + (statusLabels[order.status] || order.status) + '</span></div><div class="order-card__items">' + itemsHtml + '</div><div class="order-card__meta">📍 ' + (point ? point.name : 'Неизвестный пункт') + (order.comment ? ' 💬 ' + order.comment : '') + '</div><div class="order-card__total">' + order.total + ' ₽</div><div class="order-card__meta">📅 ' + new Date(order.created_at).toLocaleString() + '</div></div>';
+    if (promocode.is_used) {
+      alert('❌ Промокод уже использован');
+      return;
     }
-    html += '</div>';
-    container.innerHTML = html;
+    if (promocode.expires_at && new Date(promocode.expires_at) < new Date()) {
+      alert('❌ Промокод истёк');
+      return;
+    }
+    if (promocode.user_id && promocode.user_id !== getCurrentUser()?.id) {
+      alert('❌ Промокод не привязан к вашему аккаунту');
+      return;
+    }
+
+    activePromocode = promocode;
+    renderCart();
+    alert(`✅ Промокод применён: −${promocode.amount} ₽`);
   } catch (error) {
-    container.innerHTML = '<p style="color:#dc3545;">❌ Ошибка: ' + error.message + '</p>';
+    alert('❌ Ошибка: ' + error.message);
   }
 }
 
-async function renderBonuses() {
-  var container = document.getElementById('content');
-  if (!container) return;
-  var user = getCurrentUser();
+async function applyBonuses() {
+  const user = getCurrentUser();
   if (!user) {
-    container.innerHTML = '<div class="bonuses"><h1>🎁 Мои бонусы</h1><p style="color:#999;">Авторизуйтесь для просмотра бонусов</p></div>';
+    alert('⚠️ Необходимо авторизоваться');
     return;
   }
-  try {
-    var balance = await getBonusBalance(user.id);
-    var transactions = await getBonusTransactions(user.id);
-    transactions.sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); });
-    var historyHtml = '';
-    for (var i = 0; i < Math.min(transactions.length, 20); i++) {
-      var tx = transactions[i];
-      var sign = tx.amount > 0 ? '+' : '';
-      var cls = tx.amount > 0 ? 'positive' : 'negative';
-      var typeMap = { 'accrued': 'Начисление', 'spent': 'Списание', 'expired': 'Сгорели', 'refunded': 'Возврат' };
-      historyHtml += '<div class="item"><span>' + (typeMap[tx.type] || tx.type) + '</span><span class="amount ' + cls + '">' + sign + tx.amount + '</span></div>';
-    }
-    container.innerHTML = '<div class="bonuses"><h1>🎁 Мои бонусы</h1><div class="bonuses__balance"><div class="label">Текущий баланс</div><div class="amount">' + balance + '</div><div class="bonuses__expires">Бонусы сгорают через 60 дней</div></div><div class="bonuses__history"><h3 style="margin-bottom:12px;">История операций</h3>' + (historyHtml || '<p style="color:#999;">История пуста</p>') + '</div><button class="btn btn--secondary" onclick="navigateTo(\'catalog\')" style="margin-top:16px;">← Вернуться</button></div>';
-  } catch (error) {
-    container.innerHTML = '<p style="color:#dc3545;">❌ Ошибка: ' + error.message + '</p>';
+
+  const cartItems = await getCartDetails();
+  const subtotal = calculateSubtotal(cartItems);
+  const maxBonus = Math.floor(subtotal * 0.3); // до 30% от суммы заказа
+
+  if (maxBonus <= 0) {
+    alert('❌ Недостаточно товаров для списания бонусов');
+    return;
   }
+
+  const balance = await getBonusBalance(user.id);
+  if (balance <= 0) {
+    alert('❌ У вас нет доступных бонусов');
+    return;
+  }
+
+  const amount = prompt(
+    `Доступно бонусов: ${balance}\nМожно списать до: ${maxBonus}\nВведите сумму:`
+  );
+
+  if (!amount) return;
+  const numAmount = parseInt(amount);
+
+  if (isNaN(numAmount) || numAmount <= 0) {
+    alert('❌ Введите корректную сумму');
+    return;
+  }
+  if (numAmount > balance) {
+    alert('❌ Недостаточно бонусов');
+    return;
+  }
+  if (numAmount > maxBonus) {
+    alert(`❌ Можно списать не более ${maxBonus} бонусов (30% от заказа)`);
+    return;
+  }
+
+  activeBonusAmount = numAmount;
+  renderCart();
+  alert(`✅ Бонусы применены: −${numAmount} ₽`);
 }
 
-async function showOrderTracking(orderId) {
+// ============================================================
+//  ЗАКАЗЫ
+// ============================================================
+
+async function renderOrders() {
+  const container = document.getElementById('content');
+  if (!container) return;
+
+  const user = getCurrentUser();
+  if (!user) {
+    container.innerHTML = `
+      <div class="orders">
+        <h1 class="orders__title">📋 Мои заказы</h1>
+        <p style="color:#999;">Авторизуйтесь для просмотра заказов</p>
+        <button class="btn btn--primary" onclick="document.getElementById('authModal').classList.add('active')">🔑 Войти</button>
+      </div>
+    `;
+    return;
+  }
+
   try {
-    var order = await getOrder(orderId);
-    var products = await getProducts();
-    var points = await getPickupPoints();
-    var point = null;
-    for (var i = 0; i < points.length; i++) {
-      if (points[i].id === order.pickup_point_id) { point = points[i]; break; }
+    const userOrders = await getOrdersByUser(user.id);
+
+    if (userOrders.length === 0) {
+      container.innerHTML = `
+        <div class="orders">
+          <h1 class="orders__title">📋 Мои заказы</h1>
+          <p style="color:#999;">У вас пока нет заказов</p>
+          <button class="btn btn--primary" onclick="navigateTo('catalog')">🛍️ Перейти в каталог</button>
+        </div>
+      `;
+      return;
     }
-    var itemsHtml = '';
-    for (var i = 0; i < order.items.length; i++) {
-      var item = order.items[i];
-      var product = null;
-      for (var j = 0; j < products.length; j++) {
-        if (products[j].id === item.productId) { product = products[j]; break; }
-      }
-      itemsHtml += '<div class="detail-row"><span>' + (product ? product.name : 'Товар') + ' × ' + item.quantity + '</span><span>' + (item.price * item.quantity) + ' ₽</span></div>';
-    }
-    var statusLabels = {
+
+    const products = await getProducts();
+    const points = await getPickupPoints();
+
+    const statusLabels = {
       'Новый': '🟡 Новый',
       'Ожидает подтверждения': '🟠 Ожидает подтверждения',
       'Готовится': '🟠 Готовится',
@@ -323,33 +612,235 @@ async function showOrderTracking(orderId) {
       'Доставлен': '✅ Доставлен',
       'Выдан': '✅ Выдан',
       'Отменен': '❌ Отменен',
-      'Возврат': '🔄 Возврат'
+      'Возврат': '🔄 Возврат',
     };
-    var container = document.getElementById('content');
-    container.innerHTML = '<div class="tracking"><h1>📦 Заказ #' + order.id + '</h1><p style="color:#888; margin-bottom:16px;">Отслеживание статуса</p><div style="padding:12px 16px; background:#f8f9fa; border-radius:8px; max-width:500px;"><strong>Текущий статус:</strong> ' + (statusLabels[order.status] || order.status) + '</div><div class="tracking__order-details" style="margin-top:16px; background:#fff; border:1px solid #eee; border-radius:12px; padding:20px; max-width:500px;"><h3 style="margin-bottom:8px;">📋 Детали заказа</h3>' + itemsHtml + '<div style="border-top:2px solid #eee; padding-top:8px; margin-top:8px; font-weight:700; font-size:16px;"><div class="detail-row"><span>Итого</span><span style="color:#F37321;">' + order.total + ' ₽</span></div></div><div class="detail-row" style="margin-top:8px; font-size:13px; color:#888;"><span>📍 ' + (point ? point.name : 'Неизвестный пункт') + '</span><span>' + (point ? point.address : '') + '</span></div>' + (order.comment ? '<div class="detail-row" style="font-size:13px; color:#888;"><span>💬 ' + order.comment + '</span></div>' : '') + '<div class="detail-row" style="font-size:12px; color:#999;">📅 ' + new Date(order.created_at).toLocaleString() + '</div></div><div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;"><button class="btn btn--secondary" onclick="navigateTo(\'orders\')">← Вернуться</button><button class="btn btn--primary" onclick="window.print()">🖨️ Распечатать</button></div></div>';
+
+    let html = `<div class="orders"><h1 class="orders__title">📋 Мои заказы</h1>`;
+
+    userOrders.forEach((order) => {
+      const point = points.find((p) => p.id === order.pickup_point_id);
+      const itemsHtml = order.items
+        .map((item) => {
+          const product = products.find((p) => p.id === item.productId);
+          return `${product ? product.name : 'Товар'} × ${item.quantity}`;
+        })
+        .join('; ');
+
+      const typeLabel =
+        order.order_type === 'delivery'
+          ? `🛵 Доставка: ${order.delivery_address}`
+          : `📍 ${point ? point.name : 'Пункт выдачи'}`;
+
+      html += `
+        <div class="order-card" onclick="showOrderTracking(${order.id})">
+          <div class="order-card__header">
+            <span class="order-card__id">Заказ #${order.id}</span>
+            <span class="order-card__status">${statusLabels[order.status] || order.status}</span>
+          </div>
+          <div class="order-card__items">${itemsHtml}</div>
+          <div class="order-card__meta">${typeLabel}</div>
+          ${order.comment ? `<div class="order-card__meta">💬 ${order.comment}</div>` : ''}
+          <div class="order-card__total">${order.total} ₽</div>
+          <div class="order-card__meta">📅 ${new Date(order.created_at).toLocaleString('ru-RU')}</div>
+        </div>
+      `;
+    });
+
+    html += `</div>`;
+    container.innerHTML = html;
+  } catch (error) {
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
+  }
+}
+
+// ============================================================
+//  ОТСЛЕЖИВАНИЕ ЗАКАЗА
+// ============================================================
+
+async function showOrderTracking(orderId) {
+  try {
+    const order = await getOrder(orderId);
+    if (!order) {
+      alert('❌ Заказ не найден');
+      return;
+    }
+
+    const products = await getProducts();
+    const points = await getPickupPoints();
+    const point = points.find((p) => p.id === order.pickup_point_id);
+
+    const itemsHtml = order.items
+      .map((item) => {
+        const product = products.find((p) => p.id === item.productId);
+        return `
+          <div class="detail-row">
+            <span>${product ? product.name : 'Товар'} × ${item.quantity}</span>
+            <span>${item.price * item.quantity} ₽</span>
+          </div>
+        `;
+      })
+      .join('');
+
+    const statusLabels = {
+      'Новый': '🟡 Новый',
+      'Ожидает подтверждения': '🟠 Ожидает подтверждения',
+      'Готовится': '🟠 Готовится',
+      'Готов к выдаче': '🟢 Готов к выдаче',
+      'В пути': '🔵 В пути',
+      'Доставлен': '✅ Доставлен',
+      'Выдан': '✅ Выдан',
+      'Отменен': '❌ Отменен',
+      'Возврат': '🔄 Возврат',
+    };
+
+    const typeInfo =
+      order.order_type === 'delivery'
+        ? `🛵 Доставка: ${order.delivery_address}`
+        : `📍 ${point ? point.name : 'Пункт выдачи'} — ${point ? point.address : ''}`;
+
+    const container = document.getElementById('content');
+    container.innerHTML = `
+      <div class="tracking">
+        <h1>📦 Заказ #${order.id}</h1>
+        <p style="color:#888; margin-bottom:16px;">Отслеживание статуса</p>
+        <div style="padding:12px 16px; background:#f8f9fa; border-radius:8px; max-width:500px; margin-bottom:16px;">
+          <strong>Текущий статус:</strong> ${statusLabels[order.status] || order.status}
+        </div>
+        <div class="tracking__order-details">
+          <h3 style="margin-bottom:8px;">📋 Детали заказа</h3>
+          ${itemsHtml}
+          <div style="border-top:2px solid #eee; padding-top:8px; margin-top:8px; font-weight:700; font-size:16px;">
+            <div class="detail-row">
+              <span>Итого</span>
+              <span style="color:#F37321;">${order.total} ₽</span>
+            </div>
+          </div>
+          <div class="detail-row" style="margin-top:8px; font-size:13px; color:#888;">
+            <span>${typeInfo}</span>
+          </div>
+          ${order.comment ? `<div class="detail-row" style="font-size:13px; color:#888;"><span>💬 ${order.comment}</span></div>` : ''}
+          <div class="detail-row" style="font-size:12px; color:#999; margin-top:8px;">
+            📅 ${new Date(order.created_at).toLocaleString('ru-RU')}
+          </div>
+        </div>
+        <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
+          <button class="btn btn--secondary" onclick="navigateTo('orders')">← Вернуться</button>
+          <button class="btn btn--primary" onclick="window.print()">🖨️ Распечатать</button>
+        </div>
+      </div>
+    `;
   } catch (error) {
     alert('❌ Ошибка загрузки заказа: ' + error.message);
   }
 }
 
-// ===== ИНИЦИАЛИЗАЦИЯ =====
+// ============================================================
+//  БОНУСЫ
+// ============================================================
+
+async function renderBonuses() {
+  const container = document.getElementById('content');
+  if (!container) return;
+
+  const user = getCurrentUser();
+  if (!user) {
+    container.innerHTML = `
+      <div class="bonuses">
+        <h1>🎁 Мои бонусы</h1>
+        <p style="color:#999;">Авторизуйтесь для просмотра бонусов</p>
+        <button class="btn btn--primary" onclick="document.getElementById('authModal').classList.add('active')">🔑 Войти</button>
+      </div>
+    `;
+    return;
+  }
+
+  try {
+    const balance = await getBonusBalance(user.id);
+    const transactions = await getBonusTransactions(user.id);
+
+    const typeMap = {
+      accrued: 'Начисление',
+      spent: 'Списание',
+      expired: 'Сгорели',
+      refunded: 'Возврат',
+    };
+
+    const historyHtml = transactions
+      .slice(0, 20)
+      .map((tx) => {
+        const sign = tx.amount > 0 ? '+' : '';
+        const cls = tx.amount > 0 ? 'positive' : 'negative';
+        return `
+          <div class="item">
+            <span>${typeMap[tx.type] || tx.type} ${tx.description ? `— ${tx.description}` : ''}</span>
+            <span class="amount ${cls}">${sign}${tx.amount}</span>
+          </div>
+        `;
+      })
+      .join('');
+
+    container.innerHTML = `
+      <div class="bonuses">
+        <h1>🎁 Мои бонусы</h1>
+        <div class="bonuses__balance">
+          <div class="label">Текущий баланс</div>
+          <div class="amount">${balance}</div>
+          <div class="bonuses__expires">Бонусы сгорают через 60 дней</div>
+        </div>
+        <div class="bonuses__history">
+          <h3 style="margin-bottom:12px;">История операций</h3>
+          ${historyHtml || '<p style="color:#999;">История пуста</p>'}
+        </div>
+        <button class="btn btn--secondary" onclick="navigateTo('catalog')" style="margin-top:16px;">← Вернуться</button>
+      </div>
+    `;
+  } catch (error) {
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
+  }
+}
+
+// ============================================================
+//  ИНИЦИАЛИЗАЦИЯ
+// ============================================================
+
 loadCart();
 updateCartCount();
 
-document.addEventListener('DOMContentLoaded', function() {
-  var links = document.querySelectorAll('.header__link[data-page]');
-  for (var i = 0; i < links.length; i++) {
-    links[i].addEventListener('click', function(e) {
+document.addEventListener('DOMContentLoaded', function () {
+  // Навигация
+  document.querySelectorAll('.header__link[data-page]').forEach((link) => {
+    link.addEventListener('click', function (e) {
       e.preventDefault();
       navigateTo(this.dataset.page);
     });
+  });
+
+  // Кнопка входа/выхода
+  const authBtn = document.getElementById('authBtn');
+  if (authBtn) {
+    const user = getCurrentUser();
+    if (user) {
+      authBtn.textContent = '🚪 Выйти';
+      authBtn.className = 'btn btn--secondary';
+      authBtn.onclick = logout;
+    } else {
+      authBtn.textContent = '🔑 Войти';
+      authBtn.className = 'btn btn--primary';
+      authBtn.onclick = function () {
+        document.getElementById('authModal').classList.add('active');
+      };
+    }
   }
+
   renderCatalog();
   initAuthUI();
   console.log('🍕 Бердск_pizza загружена');
 });
 
-// ===== ЭКСПОРТ =====
+// ============================================================
+//  ЭКСПОРТ
+// ============================================================
+
 window.navigateTo = navigateTo;
 window.renderCatalog = renderCatalog;
 window.renderCart = renderCart;
@@ -361,4 +852,7 @@ window.updateQuantity = updateQuantity;
 window.clearCart = clearCart;
 window.checkout = checkout;
 window.submitOrder = submitOrder;
+window.toggleDeliveryAddress = toggleDeliveryAddress;
+window.applyPromocode = applyPromocode;
+window.applyBonuses = applyBonuses;
 window.showOrderTracking = showOrderTracking;
