@@ -289,22 +289,16 @@ async function checkout() {
 
 async function submitOrder() {
   const user = getCurrentUser();
-  const pickupPointId = parseInt(document.getElementById("pickupPoint").value);
-  const clientPhone = document.getElementById("clientPhone").value.trim();
-  const comment = document.getElementById("orderComment").value.trim() || "";
+  const pickupPointId = parseInt(document.getElementById('pickupPoint').value);
+  const clientPhone = document.getElementById('clientPhone').value.trim();
+  const comment = document.getElementById('orderComment').value.trim() || '';
   const cartItems = await getCartDetails();
   const total = calculateTotal(cartItems);
 
-  if (!clientPhone) {
-    alert("⚠️ Введите номер телефона");
-    return;
-  }
-  if (cartItems.length === 0) {
-    alert("❌ Корзина пуста");
-    return;
-  }
+  if (!clientPhone) { alert('⚠️ Введите номер телефона'); return; }
+  if (cartItems.length === 0) { alert('❌ Корзина пуста'); return; }
 
-  // Проверка на >30 шт
+  // Проверка на >30 шт — заказ уходит на подтверждение
   let isLargeOrder = false;
   for (const item of cartItems) {
     if (item.quantity > 30) isLargeOrder = true;
@@ -312,26 +306,22 @@ async function submitOrder() {
 
   const orderData = {
     user_id: user.id,
-    items: cartItems.map((item) => ({
-      productId: item.productId,
-      quantity: item.quantity,
-      price: item.price,
-    })),
+    items: cartItems.map(item => ({ productId: item.productId, quantity: item.quantity, price: item.price })),
     total: total,
     pickup_point_id: pickupPointId,
-    status: isLargeOrder ? "Ожидает подтверждения" : "Новый",
+    status: isLargeOrder ? 'Ожидает подтверждения' : 'Новый',
     client_phone: clientPhone,
     client_name: user.name || user.login,
-    comment: comment,
+    comment: comment
   };
 
   try {
     await createOrder(orderData);
     clearCart();
-    alert("✅ Заказ оформлен!");
-    navigateTo("orders");
+    alert('✅ Заказ оформлен!' + (isLargeOrder ? ' ⚠️ Ожидайте подтверждения оператора.' : ''));
+    navigateTo('orders');
   } catch (error) {
-    alert("❌ Ошибка: " + error.message);
+    alert('❌ Ошибка: ' + error.message);
   }
 }
 
