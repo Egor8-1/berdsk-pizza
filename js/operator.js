@@ -1,41 +1,30 @@
 // ============================================================
 //  BERDSK_PIZZA — ОПЕРАТОР
-//  Заказы, подтверждение, отмена, тикеты, промокоды
+//  Полностью переписанный модуль
 // ============================================================
 
 let operatorFilterStatus = "Все";
-
-// ===== ПРОВЕРКА ДОСТУПА =====
-function checkOperatorAccess() {
-  const user = getCurrentUser();
-  if (!user || user.role !== "operator") {
-    alert("⛔ Доступ запрещен. Требуются права оператора.");
-    window.location.href = "index.html";
-    return false;
-  }
-  return true;
-}
 
 // ============================================================
 //  ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 
 document.addEventListener("DOMContentLoaded", function () {
-  if (!checkOperatorAccess()) return;
+  if (!checkAccess("operator")) return;
 
   const user = getCurrentUser();
   const operatorUserEl = document.getElementById("operatorUser");
   if (operatorUserEl) operatorUserEl.textContent = user.name || user.login;
 
-  document.querySelectorAll(".operator-sidebar__link").forEach(function (link) {
+  // Навигация
+  document.querySelectorAll(".operator-sidebar__link").forEach((link) => {
     link.addEventListener("click", function (e) {
       e.preventDefault();
       const page = this.dataset.page;
-      document
-        .querySelectorAll(".operator-sidebar__link")
-        .forEach(function (l) {
-          l.classList.remove("active");
-        });
+
+      document.querySelectorAll(".operator-sidebar__link").forEach((l) => {
+        l.classList.remove("active");
+      });
       this.classList.add("active");
 
       switch (page) {
@@ -54,6 +43,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
+  // Выход
   const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
@@ -61,7 +51,7 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 // ============================================================
-//  ЗАКАЗЫ (ОПЕРАТОР)
+//  ЗАКАЗЫ
 // ============================================================
 
 async function renderOperatorOrders(filterStatus) {
@@ -70,9 +60,10 @@ async function renderOperatorOrders(filterStatus) {
   if (!container) return;
 
   try {
-    const orders = await getOrders();
-    const points = await getPickupPoints();
-    const users = await getUsers();
+    const [orders, points] = await Promise.all([
+      getOrders(),
+      getPickupPoints(),
+    ]);
 
     const statuses = [
       "Все",
@@ -82,37 +73,57 @@ async function renderOperatorOrders(filterStatus) {
       "Готов к выдаче",
       "В пути",
       "Доставлен",
+      "Выдан",
       "Отменен",
     ];
 
     let filtered = orders;
     if (operatorFilterStatus !== "Все") {
-      filtered = orders.filter(function (o) {
-        return o.status === operatorFilterStatus;
-      });
+      filtered = orders.filter((o) => o.status === operatorFilterStatus);
     }
 
+    // Сортировка по приоритету
+    const priority = {
+      "Ожидает подтверждения": 0,
+      "Новый": 1,
+      "Готовится": 2,
+      "Готов к выдаче": 3,
+      "В пути": 4,
+      "Доставлен": 5,
+      "Выдан": 6,
+      "Отменен": 7,
+    };
+    filtered.sort((a, b) => (priority[a.status] || 99) - (priority[b.status] || 99));
+
+    // Подсчёт для вкладок
     const counts = {};
-    statuses.forEach(function (s) {
-      if (s === "Все") counts[s] = orders.length;
-      else
-        counts[s] = orders.filter(function (o) {
-          return o.status === s;
-        }).length;
+    statuses.forEach((s) => {
+      counts[s] =
+        s === "Все"
+          ? orders.length
+          : orders.filter((o) => o.status === s).length;
     });
 
     let html = `
-      <div class="operator-orders">
-        <h1 style="font-size:24px; font-weight:700; color:#1a1a1a; margin-bottom:8px;">📋 Заказы</h1>
-        <p style="color:#888; margin-bottom:20px;">Управление заказами, подтверждение и отмена</p>
+      <div>
+        <h1 style="font-size:24px; font-weight:700; margin-bottom:8px;">📋 Заказы</h1>
+        <p style="color:#888; margin-bottom:20px;">Подтверждение крупных заказов, отмена, выдача</p>
 
-        <div class="operator__tabs" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
     `;
 
-    statuses.forEach(function (s) {
+    statuses.forEach((s) => {
       const active = s === operatorFilterStatus ? "active" : "";
-      const count = counts[s] || 0;
-      html += `<button class="operator__tab ${active}" onclick="renderOperatorOrders('${s}')" style="padding:8px 20px; background:${active ? "#F37321" : "#f0f0f0"}; color:${active ? "#fff" : "#1a1a1a"}; border:none; border-radius:30px; cursor:pointer; font-weight:500;">${s} <span style="background:${active ? "rgba(255,255,255,0.2)" : "#ddd"}; padding:1px 10px; border-radius:20px; font-size:12px;">${count}</span></button>`;
+      html += `
+        <button
+          class="operator__tab ${active}"
+          onclick="renderOperatorOrders('${s}')"
+          style="padding:8px 20px; background:${active ? "#F37321" : "#f0f0f0"}; color:${active ? "#fff" : "#1a1a1a"}; border:none; border-radius:30px; cursor:pointer; font-weight:500;"
+        >
+          ${s}
+          <span style="background:${active ? "rgba(255,255,255,0.2)" : "#ddd"}; padding:1px 10px; border-radius:20px; font-size:12px;">${counts[s] || 0}</span>
+        </button>
+      `;
     });
 
     html += `</div>`;
@@ -120,63 +131,88 @@ async function renderOperatorOrders(filterStatus) {
     if (filtered.length === 0) {
       html += `<p style="color:#999; padding:20px 0;">Нет заказов с выбранным статусом</p>`;
     } else {
-      for (const order of filtered) {
-        const point = points.find(function (p) {
-          return p.id === order.pickup_point_id;
-        });
-        const user = users.find(function (u) {
-          return u.id === order.user_id;
-        });
+      filtered.forEach((order) => {
+        const point = points.find((p) => p.id === order.pickup_point_id);
+        const totalQuantity = order.items.reduce(
+          (sum, item) => sum + item.quantity,
+          0
+        );
+        const isLarge = totalQuantity > 30;
 
-        const itemsHtml = order.items
-          .map(function (item) {
-            return item.productId + " × " + item.quantity;
-          })
+        const itemsSummary = order.items
+          .map((item) => `${item.quantity}×${item.productId}`)
           .join(", ");
 
-        const isLarge = order.items.some(function (item) {
-          return item.quantity > 30;
-        });
+        const location =
+          order.order_type === "delivery"
+            ? `🛵 ${order.delivery_address}`
+            : `📍 ${point ? point.name : "Пункт выдачи"}`;
 
         html += `
-          <div class="operator__order" style="background:#fff; border:1px solid #eee; border-radius:12px; padding:16px 20px; margin-bottom:12px;">
+          <div style="background:#fff; border:1px solid #eee; border-radius:12px; padding:16px 20px; margin-bottom:12px;">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
               <div>
                 <strong style="font-size:16px;">Заказ #${order.id}</strong>
-                <span style="margin-left:12px; padding:2px 12px; border-radius:20px; font-size:13px; background:${order.status === "Новый" ? "#fff3cd" : order.status === "Ожидает подтверждения" ? "#ffe0b2" : "#eee"};">${order.status}</span>
-                ${isLarge ? '<span style="margin-left:8px; background:#ffcc00; padding:2px 10px; border-radius:12px; font-size:12px;">⚠️ Крупный заказ</span>' : ""}
+                <span style="margin-left:12px; padding:2px 12px; border-radius:20px; font-size:13px; background:${order.status === "Ожидает подтверждения" ? "#ffe0b2" : "#eee"};">${order.status}</span>
+                ${isLarge ? '<span style="margin-left:8px; background:#ffcc00; padding:2px 10px; border-radius:12px; font-size:12px;">⚠️ Крупный</span>' : ""}
               </div>
               <div style="font-weight:700; color:#F37321;">${order.total} ₽</div>
             </div>
-            <div style="color:#555; font-size:14px; margin:4px 0;">${itemsHtml}</div>
-            <div style="color:#888; font-size:13px;">📍 ${point ? point.name : "Неизвестный пункт"} | 📞 ${order.client_phone} | 👤 ${order.client_name}</div>
-            ${order.comment ? '<div style="color:#888; font-size:13px;">💬 ' + order.comment + "</div>" : ""}
+            <div style="color:#555; font-size:14px; margin:4px 0;">
+              ${itemsSummary}
+            </div>
+            <div style="color:#888; font-size:13px;">
+              ${location} | 📞 ${order.client_phone} | 👤 ${order.client_name}
+            </div>
+            ${order.comment ? `<div style="color:#888; font-size:13px;">💬 ${order.comment}</div>` : ""}
             <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-              ${order.status === "Ожидает подтверждения" ? `<button class="btn btn--success btn--small" onclick="operatorConfirmOrder(${order.id})">✅ Подтвердить</button>` : ""}
-              ${order.status === "Новый" || order.status === "Ожидает подтверждения" ? `<button class="btn btn--danger btn--small" onclick="operatorCancelOrder(${order.id})">❌ Отменить</button>` : ""}
-              ${order.status === "Готов к выдаче" ? `<button class="btn btn--primary btn--small" onclick="operatorMarkDelivered(${order.id})">📦 Выдан</button>` : ""}
+              ${
+                order.status === "Ожидает подтверждения"
+                  ? `<button class="btn btn--success btn--small" onclick="operatorConfirmOrder(${order.id})">✅ Подтвердить</button>`
+                  : ""
+              }
+              ${
+                order.status === "Новый" || order.status === "Ожидает подтверждения"
+                  ? `<button class="btn btn--danger btn--small" onclick="operatorCancelOrder(${order.id})">❌ Отменить</button>`
+                  : ""
+              }
+              ${
+                order.status === "Готов к выдаче"
+                  ? `<button class="btn btn--primary btn--small" onclick="operatorMarkDelivered(${order.id})">📦 Выдан</button>`
+                  : ""
+              }
               <button class="btn btn--secondary btn--small" onclick="operatorViewOrder(${order.id})">👁️</button>
             </div>
           </div>
         `;
-      }
+      });
     }
 
-    html += `<div style="margin-top:16px;"><button class="btn btn--secondary" onclick="window.location.href='index.html'">← На главную</button></div>`;
+    html += `</div>`;
     container.innerHTML = html;
   } catch (error) {
-    container.innerHTML =
-      '<p style="color:#dc3545;">❌ Ошибка: ' + error.message + "</p>";
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
   }
 }
 
 // ===== ПОДТВЕРДИТЬ ЗАКАЗ =====
 async function operatorConfirmOrder(orderId) {
+  if (!confirm(`Подтвердить заказ #${orderId}?`)) return;
+
   try {
     const order = await getOrder(orderId);
-    order.status = "Готовится";
-    await updateOrder(orderId, order);
+    if (!order) {
+      alert("❌ Заказ не найден");
+      return;
+    }
+    if (order.status !== "Ожидает подтверждения") {
+      alert("❌ Заказ уже не требует подтверждения");
+      return;
+    }
+
+    await updateOrder(orderId, { status: "Готовится" });
     renderOperatorOrders();
+    alert("✅ Заказ подтверждён и отправлен на кухню");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
@@ -185,15 +221,19 @@ async function operatorConfirmOrder(orderId) {
 // ===== ОТМЕНИТЬ ЗАКАЗ =====
 async function operatorCancelOrder(orderId) {
   const reason = prompt(
-    "Причина отмены:\n1. Клиент отказался\n2. Нет ингредиентов\n3. Клиент не пришел\n4. Ошибка оператора\n5. Другое",
+    "Причина отмены:\n1. Клиент отказался\n2. Нет ингредиентов\n3. Ошибка оператора\n4. Другое"
   );
   if (!reason) return;
+
+  if (!confirm(`Отменить заказ #${orderId}?`)) return;
+
   try {
-    const order = await getOrder(orderId);
-    order.status = "Отменен";
-    order.cancel_reason = reason;
-    await updateOrder(orderId, order);
+    await updateOrder(orderId, {
+      status: "Отменен",
+      cancel_reason: reason,
+    });
     renderOperatorOrders();
+    alert("✅ Заказ отменён");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
@@ -201,12 +241,12 @@ async function operatorCancelOrder(orderId) {
 
 // ===== ВЫДАН =====
 async function operatorMarkDelivered(orderId) {
-  if (!confirm("Подтвердить выдачу заказа #" + orderId + "?")) return;
+  if (!confirm(`Подтвердить выдачу заказа #${orderId}?`)) return;
+
   try {
-    const order = await getOrder(orderId);
-    order.status = "Выдан";
-    await updateOrder(orderId, order);
+    await updateOrder(orderId, { status: "Выдан" });
     renderOperatorOrders();
+    alert("✅ Заказ выдан клиенту");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
@@ -216,24 +256,39 @@ async function operatorMarkDelivered(orderId) {
 async function operatorViewOrder(orderId) {
   try {
     const order = await getOrder(orderId);
-    const point = (await getPickupPoints()).find(function (p) {
-      return p.id === order.pickup_point_id;
-    });
+    if (!order) {
+      alert("❌ Заказ не найден");
+      return;
+    }
+
+    const products = await getProducts();
+    const points = await getPickupPoints();
+    const point = points.find((p) => p.id === order.pickup_point_id);
+
+    const itemsText = order.items
+      .map((item) => {
+        const product = products.find((p) => p.id === item.productId);
+        return `${product ? product.name : "Товар"} × ${item.quantity} = ${
+          item.price * item.quantity
+        } ₽`;
+      })
+      .join("\n");
+
+    const location =
+      order.order_type === "delivery"
+        ? `Адрес: ${order.delivery_address}`
+        : `Пункт: ${point ? point.name : "Неизвестно"}`;
+
     alert(
-      "📦 Заказ #" +
-        order.id +
-        "\nКлиент: " +
-        order.client_name +
-        "\nТелефон: " +
-        order.client_phone +
-        "\nСумма: " +
-        order.total +
-        " ₽\nСтатус: " +
-        order.status +
-        "\nПункт: " +
-        (point ? point.name : "Неизвестно") +
-        "\nКомментарий: " +
-        (order.comment || "Нет"),
+      `📦 Заказ #${order.id}\n` +
+        `Клиент: ${order.client_name}\n` +
+        `Телефон: ${order.client_phone}\n` +
+        `Тип: ${order.order_type === "delivery" ? "Доставка" : "Самовывоз"}\n` +
+        `${location}\n` +
+        `Статус: ${order.status}\n` +
+        `Сумма: ${order.total} ₽\n\n` +
+        `Состав:\n${itemsText}\n\n` +
+        `Комментарий: ${order.comment || "Нет"}`
     );
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
@@ -241,7 +296,7 @@ async function operatorViewOrder(orderId) {
 }
 
 // ============================================================
-//  ТИКЕТЫ (ОПЕРАТОР)
+//  ТИКЕТЫ
 // ============================================================
 
 async function renderOperatorTickets() {
@@ -249,58 +304,78 @@ async function renderOperatorTickets() {
   if (!container) return;
 
   try {
-    const tickets = await getTickets();
-    const users = await getUsers();
+    const [tickets, users] = await Promise.all([getTickets(), getUsers()]);
+
+    const statusLabels = {
+      "Новое": "🟡 Новое",
+      "В работе": "🟠 В работе",
+      "Решено": "✅ Решено",
+      "Возврат": "🔄 Возврат",
+    };
 
     let html = `
-      <div class="operator-tickets">
+      <div>
         <h1 style="font-size:24px; font-weight:700; margin-bottom:20px;">🎫 Обращения клиентов</h1>
-        <div class="admin-table-wrap"><table class="admin-table">
-          <thead><tr><th>ID</th><th>Клиент</th><th>Тема</th><th>Статус</th><th>Действия</th></tr></thead>
-          <tbody>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Клиент</th>
+                <th>Тема</th>
+                <th>Статус</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
     `;
 
-    for (const t of tickets) {
-      const user = users.find(function (u) {
-        return u.id === t.client_id;
+    if (tickets.length === 0) {
+      html += `<tr><td colspan="5" style="text-align:center; color:#999;">Нет обращений</td></tr>`;
+    } else {
+      tickets.forEach((t) => {
+        const user = users.find((u) => u.id === t.client_id);
+        html += `
+          <tr>
+            <td>#${t.id}</td>
+            <td>${user ? user.name : "Неизвестно"}</td>
+            <td>${t.subject}</td>
+            <td>${statusLabels[t.status] || t.status}</td>
+            <td>
+              <button class="btn btn--primary btn--small" onclick="operatorViewTicket(${t.id})">👁️</button>
+              <button class="btn btn--success btn--small" onclick="operatorResolveTicket(${t.id})">✅ Решить</button>
+            </td>
+          </tr>
+        `;
       });
-      html += `
-        <tr>
-          <td>#${t.id}</td>
-          <td>${user ? user.name : "Неизвестно"}</td>
-          <td>${t.subject}</td>
-          <td>${t.status}</td>
-          <td>
-            <button class="btn btn--primary btn--small" onclick="operatorViewTicket(${t.id})">👁️</button>
-            <button class="btn btn--success btn--small" onclick="operatorResolveTicket(${t.id})">✅ Решить</button>
-          </td>
-        </tr>
-      `;
     }
 
-    html += `</tbody></table></div></div>`;
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
     container.innerHTML = html;
   } catch (error) {
-    container.innerHTML =
-      '<p style="color:#dc3545;">❌ Ошибка: ' + error.message + "</p>";
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
   }
 }
 
 async function operatorViewTicket(id) {
   try {
     const t = await getTicket(id);
+    if (!t) {
+      alert("❌ Обращение не найдено");
+      return;
+    }
     const user = await getUser(t.client_id);
     alert(
-      "📩 Тикет #" +
-        t.id +
-        "\nКлиент: " +
-        (user ? user.name : "Неизвестно") +
-        "\nТема: " +
-        t.subject +
-        "\nОписание: " +
-        t.description +
-        "\nСтатус: " +
-        t.status,
+      `📩 Обращение #${t.id}\n` +
+        `Клиент: ${user ? user.name : "Неизвестно"}\n` +
+        `Тема: ${t.subject}\n` +
+        `Описание: ${t.description}\n` +
+        `Статус: ${t.status}`
     );
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
@@ -309,22 +384,36 @@ async function operatorViewTicket(id) {
 
 async function operatorResolveTicket(id) {
   const compensation = prompt(
-    "Предложить компенсацию?\n1. Промокод\n2. Возврат\n3. Без компенсации",
+    "Предложить компенсацию?\n1. Промокод\n2. Возврат\n3. Без компенсации"
   );
   if (!compensation) return;
+
+  const compensationType =
+    compensation === "1" ? "promocode" : compensation === "2" ? "refund" : "none";
+
+  let amount = 0;
+  if (compensationType === "promocode") {
+    amount = parseInt(prompt("Сумма промокода:"));
+  } else if (compensationType === "refund") {
+    amount = parseInt(prompt("Сумма возврата:"));
+  }
+
   try {
-    const t = await getTicket(id);
-    t.status = "Решено";
-    t.resolution = compensation;
-    await updateTicket(id, t);
+    await updateTicket(id, {
+      status: "Решено",
+      compensation_type: compensationType,
+      compensation_amount: amount || 0,
+      resolution: compensation,
+    });
     renderOperatorTickets();
+    alert("✅ Обращение решено");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
 }
 
 // ============================================================
-//  ПРОМОКОДЫ (ОПЕРАТОР)
+//  ПРОМОКОДЫ
 // ============================================================
 
 async function renderOperatorPromocodes() {
@@ -332,41 +421,63 @@ async function renderOperatorPromocodes() {
   if (!container) return;
 
   try {
-    const promocodes = await getPromocodes();
-    const users = await getUsers();
+    const [promocodes, users] = await Promise.all([
+      getPromocodes(),
+      getUsers(),
+    ]);
 
     let html = `
-      <div class="operator-promocodes">
+      <div>
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
           <h1 style="font-size:24px; font-weight:700;">🎁 Промокоды</h1>
           <button class="btn btn--primary" onclick="operatorCreatePromocode()">➕ Создать</button>
         </div>
-        <div class="admin-table-wrap"><table class="admin-table">
-          <thead><tr><th>ID</th><th>Код</th><th>Клиент</th><th>Сумма</th><th>Использован</th><th>Действия</th></tr></thead>
-          <tbody>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Код</th>
+                <th>Клиент</th>
+                <th>Сумма</th>
+                <th>Использован</th>
+                <th>Срок</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
     `;
 
-    for (const p of promocodes) {
-      const user = users.find(function (u) {
-        return u.id === p.user_id;
+    if (promocodes.length === 0) {
+      html += `<tr><td colspan="7" style="text-align:center; color:#999;">Нет промокодов</td></tr>`;
+    } else {
+      promocodes.forEach((p) => {
+        const user = users.find((u) => u.id === p.user_id);
+        html += `
+          <tr>
+            <td>${p.id}</td>
+            <td><strong>${p.code}</strong></td>
+            <td>${user ? user.name : "Общий"}</td>
+            <td>${p.amount} ₽</td>
+            <td>${p.is_used ? "✅" : "❌"}</td>
+            <td>${p.expires_at ? new Date(p.expires_at).toLocaleDateString("ru-RU") : "∞"}</td>
+            <td>
+              <button class="btn btn--danger btn--small" onclick="operatorDeletePromocode(${p.id})">🗑️</button>
+            </td>
+          </tr>
+        `;
       });
-      html += `
-        <tr>
-          <td>${p.id}</td>
-          <td><strong>${p.code}</strong></td>
-          <td>${user ? user.name : "Общий"}</td>
-          <td>${p.amount} ₽</td>
-          <td>${p.is_used ? "✅" : "❌"}</td>
-          <td><button class="btn btn--danger btn--small" onclick="operatorDeletePromocode(${p.id})">🗑️</button></td>
-        </tr>
-      `;
     }
 
-    html += `</tbody></table></div></div>`;
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
     container.innerHTML = html;
   } catch (error) {
-    container.innerHTML =
-      '<p style="color:#dc3545;">❌ Ошибка: ' + error.message + "</p>";
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
   }
 }
 
@@ -374,6 +485,12 @@ async function operatorCreatePromocode() {
   const userId = prompt("ID клиента (оставьте пустым для общего промокода):");
   const amount = prompt("Сумма промокода (в рублях):");
   if (!amount) return;
+
+  const numAmount = parseInt(amount);
+  if (isNaN(numAmount) || numAmount <= 0) {
+    alert("❌ Введите корректную сумму");
+    return;
+  }
 
   const code =
     "PIZZA-" +
@@ -385,11 +502,12 @@ async function operatorCreatePromocode() {
     await createPromocode({
       code: code,
       user_id: userId ? parseInt(userId) : null,
-      amount: parseInt(amount),
+      amount: numAmount,
       expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
       created_by: getCurrentUser().id,
     });
     renderOperatorPromocodes();
+    alert(`✅ Промокод создан: ${code}`);
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
@@ -400,6 +518,7 @@ async function operatorDeletePromocode(id) {
   try {
     await deletePromocode(id);
     renderOperatorPromocodes();
+    alert("✅ Промокод удалён");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
