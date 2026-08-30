@@ -1,37 +1,28 @@
 // ============================================================
 //  BERDSK_PIZZA — АДМИН-ПАНЕЛЬ
-//  Дашборд, заказы, товары, пункты, пользователи
+//  Полностью переписанный модуль
 // ============================================================
 
 let adminFilterStatus = "Все";
-
-// ===== ПРОВЕРКА ДОСТУПА =====
-function checkAdminAccess() {
-  const user = getCurrentUser();
-  if (!user || user.role !== "admin") {
-    alert("⛔ Доступ запрещен. Требуются права администратора.");
-    window.location.href = "index.html";
-    return false;
-  }
-  return true;
-}
 
 // ============================================================
 //  ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 
 document.addEventListener("DOMContentLoaded", function () {
-  if (!checkAdminAccess()) return;
+  if (!checkAccess("admin")) return;
 
   const user = getCurrentUser();
   const adminUserEl = document.getElementById("adminUser");
   if (adminUserEl) adminUserEl.textContent = user.name || user.login;
 
-  document.querySelectorAll(".admin-sidebar__link").forEach(function (link) {
+  // Навигация по сайдбару
+  document.querySelectorAll(".admin-sidebar__link").forEach((link) => {
     link.addEventListener("click", function (e) {
       e.preventDefault();
       const page = this.dataset.page;
-      document.querySelectorAll(".admin-sidebar__link").forEach(function (l) {
+
+      document.querySelectorAll(".admin-sidebar__link").forEach((l) => {
         l.classList.remove("active");
       });
       this.classList.add("active");
@@ -67,8 +58,30 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
+  // Выход
   const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
+
+  // Закрытие модалок
+  document.querySelectorAll(".modal").forEach((modal) => {
+    modal.addEventListener("click", function (e) {
+      if (e.target === modal) modal.classList.remove("active");
+    });
+  });
+
+  const closeProduct = document.getElementById("closeProductModal");
+  if (closeProduct) {
+    closeProduct.addEventListener("click", () => {
+      document.getElementById("productModal").classList.remove("active");
+    });
+  }
+
+  const closePoint = document.getElementById("closePointModal");
+  if (closePoint) {
+    closePoint.addEventListener("click", () => {
+      document.getElementById("pointModal").classList.remove("active");
+    });
+  }
 
   renderDashboard();
 });
@@ -82,67 +95,110 @@ async function renderDashboard() {
   if (!container) return;
 
   try {
-    const orders = await getOrders();
+    const [orders, products, users] = await Promise.all([
+      getOrders(),
+      getProducts(),
+      getUsers(),
+    ]);
+
     const totalOrders = orders.length;
-    const totalRevenue = orders.reduce(function (sum, o) {
-      return sum + o.total;
-    }, 0);
-    const newOrders = orders.filter(function (o) {
-      return o.status === "Новый";
-    }).length;
-    const waitingOrders = orders.filter(function (o) {
-      return o.status === "Ожидает подтверждения";
-    }).length;
+    const totalRevenue = orders.reduce(
+      (sum, o) => sum + (o.status !== "Отменен" ? o.total : 0),
+      0
+    );
+    const newOrders = orders.filter((o) => o.status === "Новый").length;
+    const waitingOrders = orders.filter(
+      (o) => o.status === "Ожидает подтверждения"
+    ).length;
+    const cancelledOrders = orders.filter(
+      (o) => o.status === "Отменен"
+    ).length;
+    const activeProducts = products.filter((p) => !p.is_stopped).length;
+    const totalUsers = users.filter((u) => u.role === "client").length;
+
+    // Последние заказы
+    const recentOrders = orders.slice(0, 5);
 
     container.innerHTML = `
       <div class="dashboard">
         <h1 style="font-size:24px; font-weight:700; margin-bottom:20px;">📊 Дашборд</h1>
         <div class="dashboard__stats">
-          <div class="stat-card"><div class="stat-card__label">Всего заказов</div><div class="stat-card__value">${totalOrders}</div></div>
-          <div class="stat-card"><div class="stat-card__label">Выручка</div><div class="stat-card__value orange">${totalRevenue} ₽</div></div>
-          <div class="stat-card"><div class="stat-card__label">Новых</div><div class="stat-card__value" style="color:#e65100;">${newOrders}</div></div>
-          <div class="stat-card"><div class="stat-card__label">Ожидают подтверждения</div><div class="stat-card__value" style="color:#F37321;">${waitingOrders}</div></div>
+          <div class="stat-card">
+            <div class="stat-card__label">Всего заказов</div>
+            <div class="stat-card__value">${totalOrders}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__label">Выручка</div>
+            <div class="stat-card__value orange">${totalRevenue} ₽</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__label">Новых</div>
+            <div class="stat-card__value" style="color:#e65100;">${newOrders}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__label">Ожидают</div>
+            <div class="stat-card__value" style="color:#F37321;">${waitingOrders}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__label">Отменено</div>
+            <div class="stat-card__value" style="color:#dc3545;">${cancelledOrders}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__label">Активных товаров</div>
+            <div class="stat-card__value green">${activeProducts}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__label">Клиентов</div>
+            <div class="stat-card__value">${totalUsers}</div>
+          </div>
         </div>
+
         <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid #eee;">
           <h3 style="margin-bottom:12px;">📋 Последние заказы</h3>
           ${
-            orders.length === 0
+            recentOrders.length === 0
               ? '<p style="color:#999;">Нет заказов</p>'
               : `
-            <div class="admin-table-wrap"><table class="admin-table">
-              <thead><tr><th>ID</th><th>Клиент</th><th>Сумма</th><th>Статус</th></tr></thead>
-              <tbody>
-                ${orders
-                  .slice(0, 5)
-                  .map(function (o) {
-                    return (
-                      "<tr><td>#" +
-                      o.id +
-                      "</td><td>" +
-                      o.client_name +
-                      "</td><td>" +
-                      o.total +
-                      " ₽</td><td>" +
-                      o.status +
-                      "</td></tr>"
-                    );
-                  })
-                  .join("")}
-              </tbody>
-            </table></div>
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Клиент</th>
+                    <th>Тип</th>
+                    <th>Сумма</th>
+                    <th>Статус</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${recentOrders
+                    .map(
+                      (o) => `
+                    <tr>
+                      <td>#${o.id}</td>
+                      <td>${o.client_name}</td>
+                      <td>${o.order_type === "delivery" ? "🛵 Доставка" : "🏪 Самовывоз"}</td>
+                      <td>${o.total} ₽</td>
+                      <td>${o.status}</td>
+                    </tr>
+                  `
+                    )
+                    .join("")}
+                </tbody>
+              </table>
+            </div>
           `
           }
         </div>
       </div>
     `;
   } catch (error) {
-    container.innerHTML =
-      '<p style="color:#dc3545;">❌ Ошибка: ' + error.message + "</p>";
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
   }
 }
 
 // ============================================================
-//  ВСЕ ЗАКАЗЫ (АДМИН)
+//  ВСЕ ЗАКАЗЫ
 // ============================================================
 
 async function renderAllOrders() {
@@ -150,65 +206,167 @@ async function renderAllOrders() {
   if (!container) return;
 
   try {
-    const orders = await getOrders();
-    const users = await getUsers();
-    const points = await getPickupPoints();
+    const [orders, points] = await Promise.all([
+      getOrders(),
+      getPickupPoints(),
+    ]);
 
     let html = `
-      <div><div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
-        <h1 style="font-size:24px; font-weight:700;">📋 Все заказы</h1>
-        <button class="btn btn--outline btn--small" onclick="window.print()">🖨️ Печать</button>
-      </div>
-      <div class="admin-table-wrap"><table class="admin-table" id="ordersTable">
-        <thead><tr><th>ID</th><th>Клиент</th><th>Сумма</th><th>Пункт</th><th>Статус</th><th>Действия</th></tr></thead>
-        <tbody>
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+          <h1 style="font-size:24px; font-weight:700;">📋 Все заказы</h1>
+          <button class="btn btn--outline btn--small" onclick="window.print()">🖨️ Печать</button>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Клиент</th>
+                <th>Тип</th>
+                <th>Сумма</th>
+                <th>Пункт/Адрес</th>
+                <th>Статус</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
     `;
 
-    for (const order of orders) {
-      const point = points.find(function (p) {
-        return p.id === order.pickup_point_id;
+    if (orders.length === 0) {
+      html += `<tr><td colspan="7" style="text-align:center; color:#999;">Нет заказов</td></tr>`;
+    } else {
+      orders.forEach((order) => {
+        const point = points.find((p) => p.id === order.pickup_point_id);
+        const location =
+          order.order_type === "delivery"
+            ? order.delivery_address
+            : point
+            ? point.name
+            : "—";
+
+        html += `
+          <tr>
+            <td>#${order.id}</td>
+            <td>${order.client_name}</td>
+            <td>${order.order_type === "delivery" ? "🛵" : "🏪"}</td>
+            <td>${order.total} ₽</td>
+            <td>${location}</td>
+            <td>${order.status}</td>
+            <td>
+              <button class="btn btn--primary btn--small" onclick="adminViewOrder(${order.id})">👁️</button>
+              <button class="btn btn--warning btn--small" onclick="adminChangeStatus(${order.id})">✏️</button>
+              ${
+                order.status !== "Отменен" && order.status !== "Выдан" && order.status !== "Доставлен"
+                  ? `<button class="btn btn--danger btn--small" onclick="adminCancelOrder(${order.id})">🗑️</button>`
+                  : ""
+              }
+            </td>
+          </tr>
+        `;
       });
-      html += `
-        <tr>
-          <td>#${order.id}</td>
-          <td>${order.client_name}</td>
-          <td>${order.total} ₽</td>
-          <td>${point ? point.name.substring(0, 20) + "..." : "Неизвестно"}</td>
-          <td>${order.status}</td>
-          <td>
-            <button class="btn btn--warning btn--small" onclick="changeOrderStatus(${order.id}, 'Готовится')">👨‍🍳 В работу</button>
-            <button class="btn btn--danger btn--small" onclick="cancelOrder(${order.id})">🗑️ Отменить</button>
-          </td>
-        </tr>
-      `;
     }
 
-    html += `</tbody></table></div></div>`;
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
     container.innerHTML = html;
   } catch (error) {
-    container.innerHTML =
-      '<p style="color:#dc3545;">❌ Ошибка: ' + error.message + "</p>";
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
   }
 }
 
-async function changeOrderStatus(orderId, newStatus) {
+async function adminViewOrder(orderId) {
   try {
     const order = await getOrder(orderId);
-    order.status = newStatus;
-    await updateOrder(orderId, order);
-    renderAllOrders();
+    if (!order) {
+      alert("❌ Заказ не найден");
+      return;
+    }
+
+    const products = await getProducts();
+    const itemsText = order.items
+      .map((item) => {
+        const product = products.find((p) => p.id === item.productId);
+        return `${product ? product.name : "Товар"} × ${item.quantity} = ${
+          item.price * item.quantity
+        } ₽`;
+      })
+      .join("\n");
+
+    alert(
+      `📦 Заказ #${order.id}\n` +
+        `Клиент: ${order.client_name}\n` +
+        `Телефон: ${order.client_phone}\n` +
+        `Тип: ${order.order_type === "delivery" ? "Доставка" : "Самовывоз"}\n` +
+        `${
+          order.order_type === "delivery"
+            ? `Адрес: ${order.delivery_address}\n`
+            : ""
+        }` +
+        `Статус: ${order.status}\n` +
+        `Сумма: ${order.total} ₽\n\n` +
+        `Состав:\n${itemsText}\n\n` +
+        `Комментарий: ${order.comment || "Нет"}\n` +
+        `Создан: ${new Date(order.created_at).toLocaleString("ru-RU")}`
+    );
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
 }
 
-async function cancelOrder(orderId) {
-  if (!confirm("Отменить заказ #" + orderId + "?")) return;
+async function adminChangeStatus(orderId) {
+  const statuses = [
+    "Новый",
+    "Ожидает подтверждения",
+    "Готовится",
+    "Готов к выдаче",
+    "В пути",
+    "Доставлен",
+    "Выдан",
+    "Отменен",
+    "Возврат",
+  ];
+
+  const currentStatus = await getOrder(orderId).then((o) => o.status);
+  const statusList = statuses.join("\n");
+  const newStatus = prompt(
+    `Текущий статус: ${currentStatus}\n\nВыберите новый статус:\n${statusList}`,
+    currentStatus
+  );
+
+  if (!newStatus || newStatus === currentStatus) return;
+
+  if (!statuses.includes(newStatus)) {
+    alert("❌ Некорректный статус");
+    return;
+  }
+
   try {
-    const order = await getOrder(orderId);
-    order.status = "Отменен";
-    await updateOrder(orderId, order);
+    await updateOrder(orderId, { status: newStatus });
     renderAllOrders();
+    alert("✅ Статус обновлён");
+  } catch (error) {
+    alert("❌ Ошибка: " + error.message);
+  }
+}
+
+async function adminCancelOrder(orderId) {
+  const reason = prompt("Причина отмены:");
+  if (!reason) return;
+
+  if (!confirm(`Отменить заказ #${orderId}?`)) return;
+
+  try {
+    await updateOrder(orderId, {
+      status: "Отменен",
+      cancel_reason: reason,
+    });
+    renderAllOrders();
+    alert("✅ Заказ отменён");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
@@ -226,43 +384,61 @@ async function renderProductsManagement() {
     const products = await getProducts();
 
     let html = `
-      <div><div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
-        <h1 style="font-size:24px; font-weight:700;">📦 Управление товарами</h1>
-        <button class="btn btn--primary" onclick="showAddProduct()">➕ Добавить</button>
-      </div>
-      <div class="admin-table-wrap"><table class="admin-table">
-        <thead><tr><th>#</th><th>Название</th><th>Категория</th><th>Цена</th><th>Стоп</th><th>Действия</th></tr></thead>
-        <tbody>
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+          <h1 style="font-size:24px; font-weight:700;">📦 Управление товарами</h1>
+          <button class="btn btn--primary" onclick="showAddProduct()">➕ Добавить</button>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Название</th>
+                <th>Категория</th>
+                <th>Цена</th>
+                <th>Стоп</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
     `;
 
-    for (const p of products) {
-      html += `
-        <tr>
-          <td>${p.id}</td>
-          <td>${p.image || "🍕"} ${p.name}</td>
-          <td>${p.category}</td>
-          <td>${p.price} ₽</td>
-          <td>${p.is_stopped ? "❌" : "✅"}</td>
-          <td>
-            <button class="btn btn--warning btn--small" onclick="editProduct(${p.id})">✏️</button>
-            <button class="btn btn--danger btn--small" onclick="deleteProductItem(${p.id})">🗑️</button>
-            <button class="btn btn--secondary btn--small" onclick="toggleStop(${p.id})">${p.is_stopped ? "В продажу" : "В стоп"}</button>
-          </td>
-        </tr>
-      `;
+    if (products.length === 0) {
+      html += `<tr><td colspan="6" style="text-align:center; color:#999;">Нет товаров</td></tr>`;
+    } else {
+      products.forEach((p) => {
+        html += `
+          <tr>
+            <td>${p.id}</td>
+            <td>${p.image || "🍕"} ${p.name}</td>
+            <td>${p.category}</td>
+            <td>${p.price} ₽</td>
+            <td>${p.is_stopped ? "❌" : "✅"}</td>
+            <td>
+              <button class="btn btn--warning btn--small" onclick="editProduct(${p.id})">✏️</button>
+              <button class="btn btn--secondary btn--small" onclick="toggleProductStop(${p.id})">${p.is_stopped ? "▶️" : "⏸️"}</button>
+              <button class="btn btn--danger btn--small" onclick="deleteProductItem(${p.id})">🗑️</button>
+            </td>
+          </tr>
+        `;
+      });
     }
 
-    html += `</tbody></table></div></div>`;
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
     container.innerHTML = html;
   } catch (error) {
-    container.innerHTML =
-      '<p style="color:#dc3545;">❌ Ошибка: ' + error.message + "</p>";
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
   }
 }
 
 function showAddProduct() {
-  document.getElementById("productModalTitle").textContent =
-    "➕ Добавление товара";
+  document.getElementById("productModalTitle").textContent = "➕ Добавление товара";
   document.getElementById("productId").value = "";
   document.getElementById("prodName").value = "";
   document.getElementById("prodCategory").value = "Пицца";
@@ -276,17 +452,19 @@ function showAddProduct() {
 async function editProduct(id) {
   try {
     const p = await getProduct(id);
-    document.getElementById("productModalTitle").textContent =
-      "✏️ Редактирование";
+    if (!p) {
+      alert("❌ Товар не найден");
+      return;
+    }
+
+    document.getElementById("productModalTitle").textContent = "✏️ Редактирование";
     document.getElementById("productId").value = p.id;
     document.getElementById("prodName").value = p.name;
     document.getElementById("prodCategory").value = p.category;
     document.getElementById("prodPrice").value = p.price;
     document.getElementById("prodDesc").value = p.description || "";
     document.getElementById("prodImage").value = p.image || "🍕";
-    document.getElementById("prodStopped").value = p.is_stopped
-      ? "true"
-      : "false";
+    document.getElementById("prodStopped").value = p.is_stopped ? "true" : "false";
     document.getElementById("productModal").classList.add("active");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
@@ -304,6 +482,11 @@ async function saveProduct() {
     is_stopped: document.getElementById("prodStopped").value === "true",
   };
 
+  if (!data.name || !data.price || data.price <= 0) {
+    alert("❌ Заполните название и корректную цену");
+    return;
+  }
+
   try {
     if (id) {
       await updateProduct(parseInt(id), data);
@@ -312,16 +495,20 @@ async function saveProduct() {
     }
     document.getElementById("productModal").classList.remove("active");
     renderProductsManagement();
+    alert("✅ Товар сохранён");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
 }
 
-async function toggleStop(id) {
+async function toggleProductStop(id) {
   try {
     const p = await getProduct(id);
-    p.is_stopped = !p.is_stopped;
-    await updateProduct(id, p);
+    if (!p) {
+      alert("❌ Товар не найден");
+      return;
+    }
+    await updateProduct(id, { is_stopped: !p.is_stopped });
     renderProductsManagement();
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
@@ -333,6 +520,7 @@ async function deleteProductItem(id) {
   try {
     await deleteProduct(id);
     renderProductsManagement();
+    alert("✅ Товар удалён");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
@@ -350,41 +538,60 @@ async function renderPointsManagement() {
     const points = await getPickupPoints();
 
     let html = `
-      <div><div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
-        <h1 style="font-size:24px; font-weight:700;">📍 Пункты выдачи</h1>
-        <button class="btn btn--primary" onclick="showAddPoint()">➕ Добавить</button>
-      </div>
-      <div class="admin-table-wrap"><table class="admin-table">
-        <thead><tr><th>#</th><th>Название</th><th>Адрес</th><th>Телефон</th><th>Действия</th></tr></thead>
-        <tbody>
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+          <h1 style="font-size:24px; font-weight:700;">📍 Пункты выдачи</h1>
+          <button class="btn btn--primary" onclick="showAddPoint()">➕ Добавить</button>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Название</th>
+                <th>Адрес</th>
+                <th>Телефон</th>
+                <th>Часы работы</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
     `;
 
-    for (const p of points) {
-      html += `
-        <tr>
-          <td>${p.id}</td>
-          <td>${p.name}</td>
-          <td>${p.address}</td>
-          <td>${p.phone || "-"}</td>
-          <td>
-            <button class="btn btn--warning btn--small" onclick="editPoint(${p.id})">✏️</button>
-            <button class="btn btn--danger btn--small" onclick="deletePointItem(${p.id})">🗑️</button>
-          </td>
-        </tr>
-      `;
+    if (points.length === 0) {
+      html += `<tr><td colspan="6" style="text-align:center; color:#999;">Нет пунктов</td></tr>`;
+    } else {
+      points.forEach((p) => {
+        html += `
+          <tr>
+            <td>${p.id}</td>
+            <td>${p.name}</td>
+            <td>${p.address}</td>
+            <td>${p.phone || "—"}</td>
+            <td>${p.work_hours || "—"}</td>
+            <td>
+              <button class="btn btn--warning btn--small" onclick="editPoint(${p.id})">✏️</button>
+              <button class="btn btn--danger btn--small" onclick="deletePointItem(${p.id})">🗑️</button>
+            </td>
+          </tr>
+        `;
+      });
     }
 
-    html += `</tbody></table></div></div>`;
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
     container.innerHTML = html;
   } catch (error) {
-    container.innerHTML =
-      '<p style="color:#dc3545;">❌ Ошибка: ' + error.message + "</p>";
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
   }
 }
 
 function showAddPoint() {
-  document.getElementById("pointModalTitle").textContent =
-    "➕ Добавление пункта";
+  document.getElementById("pointModalTitle").textContent = "➕ Добавление пункта";
   document.getElementById("pointId").value = "";
   document.getElementById("pointName").value = "";
   document.getElementById("pointAddress").value = "";
@@ -395,8 +602,12 @@ function showAddPoint() {
 async function editPoint(id) {
   try {
     const p = await getPickupPoint(id);
-    document.getElementById("pointModalTitle").textContent =
-      "✏️ Редактирование";
+    if (!p) {
+      alert("❌ Пункт не найден");
+      return;
+    }
+
+    document.getElementById("pointModalTitle").textContent = "✏️ Редактирование";
     document.getElementById("pointId").value = p.id;
     document.getElementById("pointName").value = p.name;
     document.getElementById("pointAddress").value = p.address;
@@ -415,6 +626,11 @@ async function savePoint() {
     phone: document.getElementById("pointPhone").value.trim(),
   };
 
+  if (!data.name || !data.address) {
+    alert("❌ Заполните название и адрес");
+    return;
+  }
+
   try {
     if (id) {
       await updatePickupPoint(parseInt(id), data);
@@ -423,6 +639,7 @@ async function savePoint() {
     }
     document.getElementById("pointModal").classList.remove("active");
     renderPointsManagement();
+    alert("✅ Пункт сохранён");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
@@ -433,6 +650,7 @@ async function deletePointItem(id) {
   try {
     await deletePickupPoint(id);
     renderPointsManagement();
+    alert("✅ Пункт удалён");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
@@ -448,35 +666,83 @@ async function renderUsersManagement() {
 
   try {
     const users = await getUsers();
-    const html = `
-      <div><h1 style="font-size:24px; font-weight:700; margin-bottom:20px;">👥 Пользователи</h1>
-      <div class="admin-table-wrap"><table class="admin-table">
-        <thead><tr><th>ID</th><th>Имя</th><th>Логин</th><th>Роль</th><th>Действия</th></tr></thead>
-        <tbody>
-          ${users
-            .map(function (u) {
-              return (
-                "<tr><td>" +
-                u.id +
-                "</td><td>" +
-                u.name +
-                "</td><td>" +
-                u.login +
-                "</td><td>" +
-                u.role +
-                '</td><td><button class="btn btn--danger btn--small" onclick="deleteUserItem(' +
-                u.id +
-                ')">🗑️</button></td></tr>'
-              );
-            })
-            .join("")}
-        </tbody>
-      </table></div></div>
+
+    const roleLabels = {
+      admin: "👑 Админ",
+      kitchen: "👨‍🍳 Кухня",
+      operator: "📋 Оператор",
+      courier: "🛵 Курьер",
+      client: "👤 Клиент",
+    };
+
+    let html = `
+      <div>
+        <h1 style="font-size:24px; font-weight:700; margin-bottom:20px;">👥 Пользователи</h1>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Имя</th>
+                <th>Логин</th>
+                <th>Роль</th>
+                <th>Телефон</th>
+                <th>Статус</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    users.forEach((u) => {
+      html += `
+        <tr>
+          <td>${u.id}</td>
+          <td>${u.name}</td>
+          <td>${u.login}</td>
+          <td>${roleLabels[u.role] || u.role}</td>
+          <td>${u.phone || "—"}</td>
+          <td>${u.is_blocked ? "🚫 Заблокирован" : "✅ Активен"}</td>
+          <td>
+            <button class="btn btn--secondary btn--small" onclick="toggleUserBlock(${u.id})">
+              ${u.is_blocked ? "✅ Разблокировать" : "🚫 Блокировать"}
+            </button>
+            <button class="btn btn--danger btn--small" onclick="deleteUserItem(${u.id})">🗑️</button>
+          </td>
+        </tr>
+      `;
+    });
+
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
     `;
     container.innerHTML = html;
   } catch (error) {
-    container.innerHTML =
-      '<p style="color:#dc3545;">❌ Ошибка: ' + error.message + "</p>";
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
+  }
+}
+
+async function toggleUserBlock(id) {
+  try {
+    const user = await getUser(id);
+    if (!user) {
+      alert("❌ Пользователь не найден");
+      return;
+    }
+
+    if (user.id === getCurrentUser().id) {
+      alert("⛔ Нельзя заблокировать себя!");
+      return;
+    }
+
+    await updateUser(id, { is_blocked: !user.is_blocked });
+    renderUsersManagement();
+    alert(`✅ Пользователь ${user.is_blocked ? "разблокирован" : "заблокирован"}`);
+  } catch (error) {
+    alert("❌ Ошибка: " + error.message);
   }
 }
 
@@ -490,13 +756,14 @@ async function deleteUserItem(id) {
   try {
     await deleteUser(id);
     renderUsersManagement();
+    alert("✅ Пользователь удалён");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
 }
 
 // ============================================================
-//  ТИКЕТЫ (АДМИН)
+//  ТИКЕТЫ
 // ============================================================
 
 async function renderTicketsManagement() {
@@ -504,59 +771,117 @@ async function renderTicketsManagement() {
   if (!container) return;
 
   try {
-    const tickets = await getTickets();
-    const users = await getUsers();
+    const [tickets, users] = await Promise.all([getTickets(), getUsers()]);
+
+    const statusLabels = {
+      "Новое": "🟡 Новое",
+      "В работе": "🟠 В работе",
+      "Решено": "✅ Решено",
+      "Возврат": "🔄 Возврат",
+    };
 
     let html = `
-      <div><h1 style="font-size:24px; font-weight:700; margin-bottom:20px;">🎫 Тикеты</h1>
-      <div class="admin-table-wrap"><table class="admin-table">
-        <thead><tr><th>ID</th><th>Клиент</th><th>Тема</th><th>Статус</th><th>Действия</th></tr></thead>
-        <tbody>
+      <div>
+        <h1 style="font-size:24px; font-weight:700; margin-bottom:20px;">🎫 Тикеты</h1>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Клиент</th>
+                <th>Тема</th>
+                <th>Статус</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
     `;
 
-    for (const t of tickets) {
-      const user = users.find(function (u) {
-        return u.id === t.client_id;
+    if (tickets.length === 0) {
+      html += `<tr><td colspan="5" style="text-align:center; color:#999;">Нет тикетов</td></tr>`;
+    } else {
+      tickets.forEach((t) => {
+        const user = users.find((u) => u.id === t.client_id);
+        html += `
+          <tr>
+            <td>#${t.id}</td>
+            <td>${user ? user.name : "Неизвестно"}</td>
+            <td>${t.subject}</td>
+            <td>${statusLabels[t.status] || t.status}</td>
+            <td>
+              <button class="btn btn--primary btn--small" onclick="adminViewTicket(${t.id})">👁️</button>
+              <button class="btn btn--success btn--small" onclick="adminResolveTicket(${t.id})">✅ Решить</button>
+            </td>
+          </tr>
+        `;
       });
-      html += `
-        <tr>
-          <td>#${t.id}</td>
-          <td>${user ? user.name : "Неизвестно"}</td>
-          <td>${t.subject}</td>
-          <td>${t.status}</td>
-          <td><button class="btn btn--primary btn--small" onclick="viewTicket(${t.id})">👁️</button></td>
-        </tr>
-      `;
     }
 
-    html += `</tbody></table></div></div>`;
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
     container.innerHTML = html;
   } catch (error) {
-    container.innerHTML =
-      '<p style="color:#dc3545;">❌ Ошибка: ' + error.message + "</p>";
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
   }
 }
 
-async function viewTicket(id) {
+async function adminViewTicket(id) {
   try {
     const t = await getTicket(id);
+    if (!t) {
+      alert("❌ Тикет не найден");
+      return;
+    }
+    const user = await getUser(t.client_id);
     alert(
-      "📩 Тикет #" +
-        t.id +
-        "\nТема: " +
-        t.subject +
-        "\nОписание: " +
-        t.description +
-        "\nСтатус: " +
-        t.status,
+      `📩 Тикет #${t.id}\n` +
+        `Клиент: ${user ? user.name : "Неизвестно"}\n` +
+        `Тема: ${t.subject}\n` +
+        `Описание: ${t.description}\n` +
+        `Статус: ${t.status}\n` +
+        `Компенсация: ${t.compensation_type || "Нет"}\n` +
+        `Создан: ${new Date(t.created_at).toLocaleString("ru-RU")}`
     );
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
 }
 
+async function adminResolveTicket(id) {
+  const resolution = prompt(
+    "Решение:\n1. Промокод\n2. Возврат\n3. Без компенсации"
+  );
+  if (!resolution) return;
+
+  const compensationType =
+    resolution === "1" ? "promocode" : resolution === "2" ? "refund" : "none";
+  const amount =
+    compensationType === "promocode"
+      ? parseInt(prompt("Сумма промокода:"))
+      : compensationType === "refund"
+      ? parseInt(prompt("Сумма возврата:"))
+      : 0;
+
+  try {
+    await updateTicket(id, {
+      status: "Решено",
+      compensation_type: compensationType,
+      compensation_amount: amount || 0,
+      resolution: resolution,
+    });
+    renderTicketsManagement();
+    alert("✅ Тикет решён");
+  } catch (error) {
+    alert("❌ Ошибка: " + error.message);
+  }
+}
+
 // ============================================================
-//  ПРОМОКОДЫ (АДМИН)
+//  ПРОМОКОДЫ
 // ============================================================
 
 async function renderPromocodesManagement() {
@@ -564,64 +889,58 @@ async function renderPromocodesManagement() {
   if (!container) return;
 
   try {
-    const promocodes = await getPromocodes();
-    const users = await getUsers();
+    const [promocodes, users] = await Promise.all([
+      getPromocodes(),
+      getUsers(),
+    ]);
 
     let html = `
-      <div><h1 style="font-size:24px; font-weight:700; margin-bottom:20px;">🎁 Промокоды</h1>
-      <div class="admin-table-wrap"><table class="admin-table">
-        <thead><tr><th>ID</th><th>Код</th><th>Клиент</th><th>Сумма</th><th>Использован</th></tr></thead>
-        <tbody>
+      <div>
+        <h1 style="font-size:24px; font-weight:700; margin-bottom:20px;">🎁 Промокоды</h1>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Код</th>
+                <th>Клиент</th>
+                <th>Сумма</th>
+                <th>Использован</th>
+                <th>Срок</th>
+              </tr>
+            </thead>
+            <tbody>
     `;
 
-    for (const p of promocodes) {
-      const user = users.find(function (u) {
-        return u.id === p.user_id;
+    if (promocodes.length === 0) {
+      html += `<tr><td colspan="6" style="text-align:center; color:#999;">Нет промокодов</td></tr>`;
+    } else {
+      promocodes.forEach((p) => {
+        const user = users.find((u) => u.id === p.user_id);
+        html += `
+          <tr>
+            <td>${p.id}</td>
+            <td><strong>${p.code}</strong></td>
+            <td>${user ? user.name : "Общий"}</td>
+            <td>${p.amount} ₽</td>
+            <td>${p.is_used ? "✅" : "❌"}</td>
+            <td>${p.expires_at ? new Date(p.expires_at).toLocaleDateString("ru-RU") : "∞"}</td>
+          </tr>
+        `;
       });
-      html += `
-        <tr>
-          <td>${p.id}</td>
-          <td>${p.code}</td>
-          <td>${user ? user.name : "Общий"}</td>
-          <td>${p.amount} ₽</td>
-          <td>${p.is_used ? "✅" : "❌"}</td>
-        </tr>
-      `;
     }
 
-    html += `</tbody></table></div></div>`;
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
     container.innerHTML = html;
   } catch (error) {
-    container.innerHTML =
-      '<p style="color:#dc3545;">❌ Ошибка: ' + error.message + "</p>";
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
   }
 }
-
-// ============================================================
-//  ЗАКРЫТИЕ МОДАЛОК
-// ============================================================
-
-document.addEventListener("DOMContentLoaded", function () {
-  const closeProduct = document.getElementById("closeProductModal");
-  if (closeProduct) {
-    closeProduct.addEventListener("click", function () {
-      document.getElementById("productModal").classList.remove("active");
-    });
-  }
-
-  const closePoint = document.getElementById("closePointModal");
-  if (closePoint) {
-    closePoint.addEventListener("click", function () {
-      document.getElementById("pointModal").classList.remove("active");
-    });
-  }
-
-  document.querySelectorAll(".modal").forEach(function (modal) {
-    modal.addEventListener("click", function (e) {
-      if (e.target === modal) modal.classList.remove("active");
-    });
-  });
-});
 
 // ============================================================
 //  ЭКСПОРТ
@@ -634,16 +953,24 @@ window.renderPointsManagement = renderPointsManagement;
 window.renderUsersManagement = renderUsersManagement;
 window.renderTicketsManagement = renderTicketsManagement;
 window.renderPromocodesManagement = renderPromocodesManagement;
+
+window.adminViewOrder = adminViewOrder;
+window.adminChangeStatus = adminChangeStatus;
+window.adminCancelOrder = adminCancelOrder;
+
 window.showAddProduct = showAddProduct;
 window.editProduct = editProduct;
 window.saveProduct = saveProduct;
-window.toggleStop = toggleStop;
+window.toggleProductStop = toggleProductStop;
 window.deleteProductItem = deleteProductItem;
+
 window.showAddPoint = showAddPoint;
 window.editPoint = editPoint;
 window.savePoint = savePoint;
 window.deletePointItem = deletePointItem;
+
+window.toggleUserBlock = toggleUserBlock;
 window.deleteUserItem = deleteUserItem;
-window.changeOrderStatus = changeOrderStatus;
-window.cancelOrder = cancelOrder;
-window.viewTicket = viewTicket;
+
+window.adminViewTicket = adminViewTicket;
+window.adminResolveTicket = adminResolveTicket;
