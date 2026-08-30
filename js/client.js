@@ -109,12 +109,14 @@ function updateCartCount() {
 }
 
 function addToCart(productId, quantity = 1) {
-  const existing = cart.find((item) => item.productId === productId);
+  const existing = cart.find(item => item.productId === productId);
   if (existing) {
-    if (existing.quantity + quantity > 30) {
-      alert("⚠️ Нельзя заказать больше 30 штук одного товара");
-      return;
-    }
+    existing.quantity += quantity;
+  } else {
+    cart.push({ productId, quantity });
+  }
+  saveCart();
+}
     existing.quantity += quantity;
   } else {
     if (quantity > 30) {
@@ -132,14 +134,10 @@ function removeFromCart(productId) {
 }
 
 function updateQuantity(productId, quantity) {
-  if (quantity <= 0) {
-    removeFromCart(productId);
-    return;
-  }
-  if (quantity > 30) {
-    alert("⚠️ Нельзя заказать больше 30 штук одного товара");
-    return;
-  }
+  if (quantity <= 0) { removeFromCart(productId); return; }
+  const item = cart.find(item => item.productId === productId);
+  if (item) { item.quantity = quantity; saveCart(); }
+}
   const item = cart.find((item) => item.productId === productId);
   if (item) {
     item.quantity = quantity;
