@@ -15,7 +15,14 @@ async function renderReports() {
     const users = await getUsers();
     const tickets = await getTickets();
     const promocodes = await getPromocodes();
-    const bonusTx = await getBonusTransactions();
+    let bonusTx = [];
+try {
+  const allBonus = await supabaseRequest('/bonus_transactions');
+  bonusTx = allBonus || [];
+} catch (e) {
+  console.warn('Бонусы не загружены:', e);
+  bonusTx = [];
+}
 
     // ===== ФИНАНСЫ =====
     const totalOrders = orders.length;
