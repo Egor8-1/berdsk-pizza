@@ -1,6 +1,6 @@
 // ============================================================
 //  BERDSK_PIZZA — SUPABASE API
-//  Полностью переписанный модуль
+//  Полностью переписанный и исправленный модуль
 // ============================================================
 
 const SUPABASE_URL = "https://nymcnpnoxmpyyztcncvf.supabase.co";
@@ -10,10 +10,6 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 //  ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 // ============================================================
 
-/**
- * Хеширование пароля SHA-256 (на фронтенде)
- * Нужно для совместимости с БД (там тоже SHA-256)
- */
 async function hashPasswordFrontend(password) {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
@@ -22,9 +18,6 @@ async function hashPasswordFrontend(password) {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/**
- * Базовый запрос к Supabase REST API
- */
 async function supabaseRequest(endpoint, method = "GET", body = null) {
   const url = `${SUPABASE_URL}/rest/v1${endpoint}`;
   const options = {
@@ -50,7 +43,6 @@ async function supabaseRequest(endpoint, method = "GET", body = null) {
       throw new Error(`Ошибка API: ${response.status} ${response.statusText}`);
     }
 
-    // Для DELETE запросов может не быть тела ответа
     if (response.status === 204 || method === "DELETE") {
       return [];
     }
@@ -62,10 +54,8 @@ async function supabaseRequest(endpoint, method = "GET", body = null) {
   }
 }
 
-/**
- * Сериализация JSONB полей для отправки в Supabase
- */
 function serializeJsonb(data) {
+  if (!data) return data;
   const result = { ...data };
   if (result.items && typeof result.items === "object") {
     result.items = JSON.stringify(result.items);
@@ -73,9 +63,6 @@ function serializeJsonb(data) {
   return result;
 }
 
-/**
- * Десериализация JSONB полей из ответа Supabase
- */
 function deserializeJsonb(record) {
   if (!record) return null;
   const result = { ...record };
@@ -83,6 +70,7 @@ function deserializeJsonb(record) {
     try {
       result.items = JSON.parse(result.items);
     } catch (e) {
+      console.error("Ошибка парсинга items:", e);
       result.items = [];
     }
   }
@@ -94,7 +82,8 @@ function deserializeJsonb(record) {
 // ============================================================
 
 async function getUsers() {
-  return supabaseRequest("/users?select=*&order=id");
+  const result = await supabaseRequest("/users?select=*&order=id");
+  return result || [];
 }
 
 async function getUser(id) {
@@ -112,11 +101,11 @@ async function getUserByLogin(login) {
 async function createUser(data) {
   const userData = {
     login: data.login,
-    password: data.password, // уже хешированный
+    password: data.password,
     role: data.role || "client",
     name: data.name,
     phone: data.phone || null,
-    is_blocked: false,
+    is_blocked: data.is_blocked || false,
   };
   const result = await supabaseRequest("/users", "POST", userData);
   return result[0] || result;
@@ -136,9 +125,7 @@ async function deleteUser(id) {
 // ============================================================
 
 async function getProducts() {
-  const result = await supabaseRequest(
-    "/products?select=*&order=sort_order"
-  );
+  const result = await supabaseRequest("/products?select=*&order=sort_order");
   return result || [];
 }
 
@@ -163,11 +150,7 @@ async function createProduct(data) {
 }
 
 async function updateProduct(id, data) {
-  const result = await supabaseRequest(
-    `/products?id=eq.${id}`,
-    "PATCH",
-    data
-  );
+  const result = await supabaseRequest(`/products?id=eq.${id}`, "PATCH", data);
   return result[0] || result;
 }
 
@@ -185,9 +168,7 @@ async function getPickupPoints() {
 }
 
 async function getPickupPoint(id) {
-  const result = await supabaseRequest(
-    `/pickup_points?id=eq.${id}&select=*`
-  );
+  const result = await supabaseRequest(`/pickup_points?id=eq.${id}&select=*`);
   return result[0] || null;
 }
 
@@ -204,11 +185,7 @@ async function createPickupPoint(data) {
 }
 
 async function updatePickupPoint(id, data) {
-  const result = await supabaseRequest(
-    `/pickup_points?id=eq.${id}`,
-    "PATCH",
-    data
-  );
+  const result = await supabaseRequest(`/pickup_points?id=eq.${id}`, "PATCH", data);
   return result[0] || result;
 }
 
@@ -247,7 +224,7 @@ async function getOrdersByStatus(status) {
 async function createOrder(data) {
   const orderData = {
     user_id: data.user_id,
-    items: data.items, // будет сериализовано ниже
+    items: data.items,
     total: data.total,
     order_type: data.order_type || "pickup",
     delivery_address: data.delivery_address || null,
@@ -267,11 +244,7 @@ async function createOrder(data) {
 
 async function updateOrder(id, data) {
   const serialized = serializeJsonb(data);
-  const result = await supabaseRequest(
-    `/orders?id=eq.${id}`,
-    "PATCH",
-    serialized
-  );
+  const result = await supabaseRequest(`/orders?id=eq.${id}`, "PATCH", serialized);
   return result[0] ? deserializeJsonb(result[0]) : result;
 }
 
@@ -375,11 +348,7 @@ async function createPromocode(data) {
 }
 
 async function updatePromocode(id, data) {
-  const result = await supabaseRequest(
-    `/promocodes?id=eq.${id}`,
-    "PATCH",
-    data
-  );
+  const result = await supabaseRequest(`/promocodes?id=eq.${id}`, "PATCH", data);
   return result[0] || result;
 }
 
@@ -419,6 +388,13 @@ async function getBonusTransactions(userId) {
   return result || [];
 }
 
+async function getAllBonusTransactions() {
+  const result = await supabaseRequest(
+    "/bonus_transactions?select=*&order=created_at.desc"
+  );
+  return result || [];
+}
+
 async function createBonusTransaction(data) {
   const bonusData = {
     user_id: data.user_id,
@@ -429,11 +405,7 @@ async function createBonusTransaction(data) {
     is_active: data.is_active !== undefined ? data.is_active : true,
     expires_at: data.expires_at || null,
   };
-  const result = await supabaseRequest(
-    "/bonus_transactions",
-    "POST",
-    bonusData
-  );
+  const result = await supabaseRequest("/bonus_transactions", "POST", bonusData);
   return result[0] || result;
 }
 
@@ -447,11 +419,13 @@ async function updateBonusTransaction(id, data) {
 }
 
 async function getBonusBalance(userId) {
-  const result = await supabaseRequest(
-    `/bonus_transactions?user_id=eq.${userId}&is_active=eq.true&type=in.(accrued,refunded)&select=amount`
+  const transactions = await getBonusTransactions(userId);
+  const activeTransactions = transactions.filter(
+    (tx) =>
+      tx.is_active === true &&
+      (tx.type === "accrued" || tx.type === "refunded")
   );
-  if (!result) return 0;
-  return result.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+  return activeTransactions.reduce((sum, tx) => sum + (tx.amount || 0), 0);
 }
 
 async function spendBonuses(userId, amount, orderId) {
@@ -523,6 +497,7 @@ window.deletePromocode = deletePromocode;
 window.usePromocode = usePromocode;
 
 window.getBonusTransactions = getBonusTransactions;
+window.getAllBonusTransactions = getAllBonusTransactions;
 window.createBonusTransaction = createBonusTransaction;
 window.updateBonusTransaction = updateBonusTransaction;
 window.getBonusBalance = getBonusBalance;
