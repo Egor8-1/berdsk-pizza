@@ -152,7 +152,7 @@ async function renderOperatorOrders(filterStatus) {
             <div style="color:#888; font-size:13px;">📍 ${point ? point.name : "Неизвестный пункт"} | 📞 ${order.client_phone} | 👤 ${order.client_name}</div>
             ${order.comment ? '<div style="color:#888; font-size:13px;">💬 ' + order.comment + "</div>" : ""}
             <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-              ${order.status === "Новый" || order.status === "Ожидает подтверждения" ? `<button class="btn btn--success btn--small" onclick="operatorConfirmOrder(${order.id})">✅ Подтвердить</button>` : ""}
+              ${order.status === "Ожидает подтверждения" ? `<button class="btn btn--success btn--small" onclick="operatorConfirmOrder(${order.id})">✅ Подтвердить</button>` : ""}
               ${order.status === "Новый" || order.status === "Ожидает подтверждения" ? `<button class="btn btn--danger btn--small" onclick="operatorCancelOrder(${order.id})">❌ Отменить</button>` : ""}
               ${order.status === "Готов к выдаче" ? `<button class="btn btn--primary btn--small" onclick="operatorMarkDelivered(${order.id})">📦 Выдан</button>` : ""}
               <button class="btn btn--secondary btn--small" onclick="operatorViewOrder(${order.id})">👁️</button>
