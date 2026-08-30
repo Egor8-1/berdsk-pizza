@@ -124,15 +124,27 @@ try {
       return b[1].orders - a[1].orders;
     });
 
-    // ===== БОНУСЫ =====
-    let totalBonusAccrued = 0,
-      totalBonusSpent = 0,
-      totalBonusExpired = 0;
-    bonusTx.forEach(function (tx) {
-      if (tx.type === "accrued") totalBonusAccrued += tx.amount;
-      else if (tx.type === "spent") totalBonusSpent += Math.abs(tx.amount);
-      else if (tx.type === "expired") totalBonusExpired += Math.abs(tx.amount);
+   // ===== БОНУСЫ =====
+let bonusTx = [];
+let totalBonusAccrued = 0, totalBonusSpent = 0, totalBonusExpired = 0;
+try {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/bonus_transactions`, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`
+    }
+  });
+  if (response.ok) {
+    bonusTx = await response.json();
+    bonusTx.forEach(function(tx) {
+      if (tx.type === 'accrued') totalBonusAccrued += tx.amount;
+      else if (tx.type === 'spent') totalBonusSpent += Math.abs(tx.amount);
+      else if (tx.type === 'expired') totalBonusExpired += Math.abs(tx.amount);
     });
+  }
+} catch (e) {
+  console.warn('Бонусы не загружены:', e);
+}
 
     // ===== ВОЗВРАТЫ =====
     const refundOrders = orders.filter(function (o) {
