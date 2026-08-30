@@ -3,7 +3,7 @@
 // ============================================================
 
 const SUPABASE_URL = "https://nymcnpnoxmpyyztcncvf.supabase.co";
-const SUPABASE_KEY = "sb_publishable_T6eK93-3j1c0Y01h3U-2mg_r2k-F...";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55bWNucG5veG1weXl6dGNuY3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwODczMDYsImV4cCI6MjEwMzY2MzMwNn0.sU0EVcmEDlEvuzBTTmMv9iZRtA8x05FIzGcrvlbICM0";
 
 async function supabaseRequest(endpoint, method = "GET", body = null) {
   const url = `${SUPABASE_URL}/rest/v1${endpoint}`;
