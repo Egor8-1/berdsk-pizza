@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Оператор — Бердск_pizza</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍕</text></svg>"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/admin.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="admin-layout">
+      <!-- ===== SIDEBAR ===== -->
+      <aside class="operator-sidebar">
+        <div class="operator-sidebar__header">
+          <h2>🍕 БЕРДСК_PIZZA</h2>
+          <span class="operator-user" id="operatorUser">Оператор</span>
+        </div>
+        <nav class="operator-sidebar__nav">
+          <a href="#" class="operator-sidebar__link active" data-page="orders"
+            >📋 Заказы</a
+          >
+          <a href="#" class="operator-sidebar__link" data-page="tickets"
+            >🎫 Обращения</a
+          >
+          <a href="#" class="operator-sidebar__link" data-page="promocodes"
+            >🎁 Промокоды</a
+          >
+        </nav>
+        <button class="btn btn--danger btn--full" id="logoutBtn">
+          🚪 Выйти
+        </button>
+      </aside>
+
+      <!-- ===== MAIN CONTENT ===== -->
+      <main class="operator-content">
+        <div id="operatorContent"></div>
+      </main>
+    </div>
+
+    <!-- ===== SCRIPTS ===== -->
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/operator.js"></script>
+  </body>
+</html>

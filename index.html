@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Бердск_pizza — доставка</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍕</text></svg>"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/client.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <!-- ===== HEADER ===== -->
+    <header class="header">
+      <div class="container header__inner">
+        <div class="logo" onclick="navigateTo('catalog')">
+          🍕 <span>БЕРДСК</span>_PIZZA
+        </div>
+        <nav class="header__nav" id="mainNav">
+          <a href="#" class="header__link active" data-page="catalog"
+            >Каталог</a
+          >
+          <a href="#" class="header__link" data-page="cart"
+            >Корзина <span class="cart-count" id="cartCount">0</span></a
+          >
+          <a href="#" class="header__link" data-page="orders">Мои заказы</a>
+          <a href="#" class="header__link" data-page="bonuses">Мои бонусы</a>
+        </nav>
+        <div class="header__actions">
+          <span class="user-name" id="userName">👤 Гость</span>
+          <button class="btn btn--primary" id="authBtn">🔑 Войти</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="main">
+      <div class="container" id="content"></div>
+    </main>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="footer">
+      <div class="container">
+        <p>© 2026 Бердск_pizza. Все права защищены.</p>
+      </div>
+    </footer>
+
+    <!-- ===== MODAL AUTH ===== -->
+    <div class="modal" id="authModal">
+      <div class="modal__content">
+        <div class="modal__header">
+          <h2>🔑 Вход в систему</h2>
+          <button class="modal__close" id="closeAuth">&times;</button>
+        </div>
+        <div class="modal__body">
+          <form id="authForm" onsubmit="return false;">
+            <div class="form-group">
+              <label>Логин</label>
+              <input
+                type="text"
+                id="loginInput"
+                placeholder="Введите логин"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label>Пароль</label>
+              <input
+                type="password"
+                id="passwordInput"
+                placeholder="Введите пароль"
+                required
+              />
+            </div>
+            <button
+              type="button"
+              class="btn btn--primary btn--full"
+              onclick="handleLogin()"
+            >
+              🔑 Войти
+            </button>
+          </form>
+          <p
+            style="
+              margin-top: 12px;
+              text-align: center;
+              font-size: 13px;
+              color: #666;
+            "
+          >
+            Нет аккаунта?
+            <a href="#" id="showRegister" style="color: #f37321"
+              >Зарегистрироваться</a
+            >
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== MODAL REGISTER ===== -->
+    <div class="modal" id="registerModal">
+      <div class="modal__content">
+        <div class="modal__header">
+          <h2>📝 Регистрация</h2>
+          <button class="modal__close" id="closeRegister">&times;</button>
+        </div>
+        <div class="modal__body">
+          <form id="registerForm" onsubmit="return false;">
+            <div class="form-group">
+              <label>Имя</label>
+              <input
+                type="text"
+                id="regName"
+                placeholder="Введите ваше имя"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label>Логин</label>
+              <input
+                type="text"
+                id="regLogin"
+                placeholder="Придумайте логин"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label>Пароль</label>
+              <input
+                type="password"
+                id="regPassword"
+                placeholder="Придумайте пароль"
+                required
+              />
+            </div>
+            <button
+              type="button"
+              class="btn btn--primary btn--full"
+              onclick="handleRegister()"
+            >
+              📝 Зарегистрироваться
+            </button>
+          </form>
+          <p
+            style="
+              margin-top: 12px;
+              text-align: center;
+              font-size: 13px;
+              color: #666;
+            "
+          >
+            Уже есть аккаунт?
+            <a href="#" id="showAuth" style="color: #f37321">Войти</a>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SCRIPTS ===== -->
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/client.js"></script>
+  </body>
+</html>

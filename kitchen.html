@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Кухня — Бердск_pizza</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍕</text></svg>"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/admin.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="admin-layout">
+      <!-- ===== SIDEBAR ===== -->
+      <aside class="kitchen-sidebar">
+        <div class="kitchen-sidebar__header">
+          <h2>🍕 БЕРДСК_PIZZA</h2>
+          <span class="kitchen-user" id="kitchenUser">Кухня</span>
+        </div>
+        <nav class="kitchen-sidebar__nav">
+          <a href="#" class="kitchen-sidebar__link active" data-page="kitchen"
+            >👨‍🍳 Режим кухни</a
+          >
+        </nav>
+        <button class="btn btn--danger btn--full" id="logoutBtn">
+          🚪 Выйти
+        </button>
+      </aside>
+
+      <!-- ===== MAIN CONTENT ===== -->
+      <main class="kitchen-content">
+        <div id="kitchenContent"></div>
+      </main>
+    </div>
+
+    <!-- ===== SCRIPTS ===== -->
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/kitchen.js"></script>
+  </body>
+</html>

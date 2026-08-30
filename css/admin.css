@@ -1,0 +1,337 @@
+/* ============================================================
+   BERDSK_PIZZA — СТРОГИЙ ДИЗАЙН (Админ, Оператор, Кухня, Курьер)
+   Четкие линии, таблицы, строгий стиль
+   ============================================================ */
+
+/* ===== Sidebar ===== */
+.admin-sidebar,
+.operator-sidebar,
+.kitchen-sidebar,
+.courier-sidebar {
+  width: 240px;
+  background: #fff;
+  border-right: 1px solid #e0e0e0;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  height: 100vh;
+  overflow-y: auto;
+  top: 0;
+  left: 0;
+  z-index: 50;
+}
+
+.admin-sidebar__header h2,
+.operator-sidebar__header h2,
+.kitchen-sidebar__header h2,
+.courier-sidebar__header h2 {
+  font-size: 18px;
+  font-weight: 900;
+  color: #f37321;
+  letter-spacing: -0.5px;
+}
+
+.admin-user,
+.operator-user,
+.kitchen-user,
+.courier-user {
+  font-size: 13px;
+  color: #888;
+  display: block;
+  margin-top: 4px;
+}
+
+.admin-sidebar__nav,
+.operator-sidebar__nav,
+.kitchen-sidebar__nav,
+.courier-sidebar__nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 20px;
+}
+
+.admin-sidebar__link,
+.operator-sidebar__link,
+.kitchen-sidebar__link,
+.courier-sidebar__link {
+  padding: 10px 14px;
+  color: #555;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+}
+.admin-sidebar__link:hover,
+.operator-sidebar__link:hover,
+.kitchen-sidebar__link:hover,
+.courier-sidebar__link:hover {
+  background: #f5f5f5;
+  color: #1a1a1a;
+}
+.admin-sidebar__link.active,
+.operator-sidebar__link.active,
+.kitchen-sidebar__link.active,
+.courier-sidebar__link.active {
+  background: #f37321;
+  color: #fff;
+}
+
+/* ===== Content ===== */
+.admin-content,
+.operator-content,
+.kitchen-content,
+.courier-content {
+  margin-left: 240px;
+  flex: 1;
+  padding: 32px;
+  background: #f5f5f5;
+  min-height: 100vh;
+}
+
+/* ===== Dashboard Stats ===== */
+.dashboard__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.stat-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  padding: 18px 22px;
+  border-radius: 8px;
+}
+.stat-card__label {
+  font-size: 13px;
+  color: #888;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.stat-card__value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+.stat-card__value.orange {
+  color: #f37321;
+}
+.stat-card__value.green {
+  color: #28a745;
+}
+
+/* ===== Tables ===== */
+.admin-table-wrap {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+}
+.admin-table th,
+.admin-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+}
+.admin-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #555;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.admin-table tr:hover td {
+  background: #fafafa;
+}
+.admin-table td:last-child {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+}
+
+/* ===== Tabs (кухня, оператор) ===== */
+.kitchen__tab,
+.operator__tab,
+.courier__tab {
+  padding: 8px 20px;
+  background: #f0f0f0;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  color: #1a1a1a;
+  transition: all 0.2s ease;
+}
+.kitchen__tab:hover,
+.operator__tab:hover,
+.courier__tab:hover {
+  background: #e0e0e0;
+}
+.kitchen__tab.active,
+.operator__tab.active,
+.courier__tab.active {
+  background: #f37321;
+  color: #fff;
+}
+.kitchen__tab .count,
+.operator__tab .count,
+.courier__tab .count {
+  background: #ddd;
+  padding: 1px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  margin-left: 4px;
+}
+.kitchen__tab.active .count,
+.operator__tab.active .count,
+.courier__tab.active .count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+/* ===== Kitchen/Operator/Courier Cards ===== */
+.kitchen__order,
+.operator__order,
+.courier__order {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  transition: border-color 0.2s ease;
+}
+.kitchen__order:hover,
+.operator__order:hover,
+.courier__order:hover {
+  border-color: #f37321;
+}
+
+/* ===== Reports ===== */
+.reports__section {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  padding: 20px 24px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+.reports__section h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: #1a1a1a;
+}
+.reports__section table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.reports__section table th,
+.reports__section table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+}
+.reports__section table th {
+  font-weight: 600;
+  color: #555;
+  font-size: 13px;
+}
+.reports__section table tr:hover td {
+  background: #fafafa;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .admin-sidebar,
+  .operator-sidebar,
+  .kitchen-sidebar,
+  .courier-sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 16px;
+    border-right: none;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  .admin-sidebar__header,
+  .operator-sidebar__header,
+  .kitchen-sidebar__header,
+  .courier-sidebar__header {
+    flex: 1;
+    margin-bottom: 0;
+  }
+  .admin-sidebar__nav,
+  .operator-sidebar__nav,
+  .kitchen-sidebar__nav,
+  .courier-sidebar__nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+    margin-top: 8px;
+  }
+  .admin-sidebar__link,
+  .operator-sidebar__link,
+  .kitchen-sidebar__link,
+  .courier-sidebar__link {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  .admin-sidebar #logoutBtn,
+  .operator-sidebar #logoutBtn,
+  .kitchen-sidebar #logoutBtn,
+  .courier-sidebar #logoutBtn {
+    margin-top: 0;
+    padding: 6px 16px;
+    font-size: 12px;
+    width: auto;
+  }
+  .admin-content,
+  .operator-content,
+  .kitchen-content,
+  .courier-content {
+    margin-left: 0;
+    padding: 16px;
+  }
+  .dashboard__stats {
+    grid-template-columns: 1fr 1fr;
+  }
+  .admin-table td:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard__stats {
+    grid-template-columns: 1fr;
+  }
+  .admin-table th,
+  .admin-table td {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .kitchen__order,
+  .operator__order,
+  .courier__order {
+    padding: 12px 16px;
+  }
+}

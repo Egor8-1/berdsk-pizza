@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Админ-панель — Бердск_pizza</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍕</text></svg>"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/admin.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="admin-layout">
+      <!-- ===== SIDEBAR ===== -->
+      <aside class="admin-sidebar">
+        <div class="admin-sidebar__header">
+          <h2>🍕 БЕРДСК_PIZZA</h2>
+          <span class="admin-user" id="adminUser">Администратор</span>
+        </div>
+        <nav class="admin-sidebar__nav">
+          <a href="#" class="admin-sidebar__link active" data-page="dashboard"
+            >📊 Дашборд</a
+          >
+          <a href="#" class="admin-sidebar__link" data-page="orders"
+            >📋 Все заказы</a
+          >
+          <a href="#" class="admin-sidebar__link" data-page="products"
+            >📦 Товары</a
+          >
+          <a href="#" class="admin-sidebar__link" data-page="points"
+            >📍 Пункты выдачи</a
+          >
+          <a href="#" class="admin-sidebar__link" data-page="users"
+            >👥 Пользователи</a
+          >
+          <a href="#" class="admin-sidebar__link" data-page="reports"
+            >📈 Отчеты</a
+          >
+          <a href="#" class="admin-sidebar__link" data-page="tickets"
+            >🎫 Тикеты</a
+          >
+          <a href="#" class="admin-sidebar__link" data-page="promocodes"
+            >🎁 Промокоды</a
+          >
+        </nav>
+        <button class="btn btn--danger btn--full" id="logoutBtn">
+          🚪 Выйти
+        </button>
+      </aside>
+
+      <!-- ===== MAIN CONTENT ===== -->
+      <main class="admin-content">
+        <div id="adminContent"></div>
+      </main>
+    </div>
+
+    <!-- ===== MODAL ADD/EDIT PRODUCT ===== -->
+    <div class="modal" id="productModal">
+      <div class="modal__content">
+        <div class="modal__header">
+          <h2 id="productModalTitle">Редактирование товара</h2>
+          <button class="modal__close" id="closeProductModal">&times;</button>
+        </div>
+        <div class="modal__body">
+          <form id="productForm" onsubmit="return false;">
+            <input type="hidden" id="productId" />
+            <div class="form-group">
+              <label>Название</label>
+              <input type="text" id="prodName" required />
+            </div>
+            <div class="form-group">
+              <label>Категория</label>
+              <select id="prodCategory" required>
+                <option value="Пицца">Пицца</option>
+                <option value="Напитки">Напитки</option>
+                <option value="Закуски">Закуски</option>
+                <option value="Десерты">Десерты</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Цена (₽)</label>
+              <input type="number" id="prodPrice" required min="1" />
+            </div>
+            <div class="form-group">
+              <label>Описание</label>
+              <input type="text" id="prodDesc" />
+            </div>
+            <div class="form-group">
+              <label>Изображение (эмодзи)</label>
+              <input type="text" id="prodImage" placeholder="🍕" />
+            </div>
+            <div class="form-group">
+              <label>Стоп-лист</label>
+              <select id="prodStopped">
+                <option value="false">В продаже</option>
+                <option value="true">❌ В стопе</option>
+              </select>
+            </div>
+            <button
+              type="button"
+              class="btn btn--primary btn--full"
+              onclick="saveProduct()"
+            >
+              💾 Сохранить
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== MODAL ADD/EDIT POINT ===== -->
+    <div class="modal" id="pointModal">
+      <div class="modal__content">
+        <div class="modal__header">
+          <h2 id="pointModalTitle">Редактирование пункта</h2>
+          <button class="modal__close" id="closePointModal">&times;</button>
+        </div>
+        <div class="modal__body">
+          <form id="pointForm" onsubmit="return false;">
+            <input type="hidden" id="pointId" />
+            <div class="form-group">
+              <label>Название</label>
+              <input type="text" id="pointName" required />
+            </div>
+            <div class="form-group">
+              <label>Адрес</label>
+              <input type="text" id="pointAddress" required />
+            </div>
+            <div class="form-group">
+              <label>Телефон</label>
+              <input
+                type="text"
+                id="pointPhone"
+                placeholder="+7 (383) 123-45-67"
+              />
+            </div>
+            <button
+              type="button"
+              class="btn btn--primary btn--full"
+              onclick="savePoint()"
+            >
+              💾 Сохранить
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SCRIPTS ===== -->
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/admin.js"></script>
+    <script src="js/reports.js"></script>
+  </body>
+</html>
