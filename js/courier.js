@@ -1,6 +1,6 @@
 // ============================================================
 //  BERDSK_PIZZA — КУРЬЕР
-//  Полностью переписанный модуль
+//  Полностью переписанный и исправленный модуль
 // ============================================================
 
 let courierFilterStatus = "Все";
@@ -54,22 +54,12 @@ async function renderCourierOrders(filterStatus) {
     const deliveryOrders = orders.filter((o) => o.order_type === "delivery");
 
     // Статусы для курьера
-    const courierStatuses = [
-      "Готов к выдаче",
-      "В пути",
-      "Доставлен",
-    ];
-
+    const courierStatuses = ["Готов к выдаче", "В пути", "Доставлен"];
     const courierRelevant = deliveryOrders.filter((o) =>
       courierStatuses.includes(o.status)
     );
 
-    const statuses = [
-      "Все",
-      "Готов к выдаче",
-      "В пути",
-      "Доставлен",
-    ];
+    const statuses = ["Все", "Готов к выдаче", "В пути", "Доставлен"];
 
     let filtered = courierRelevant;
     if (courierFilterStatus !== "Все") {
@@ -78,7 +68,7 @@ async function renderCourierOrders(filterStatus) {
       );
     }
 
-    // Сортировка: сначала готовые к выдаче, потом в пути, потом доставленные
+    // Сортировка
     const priority = {
       "Готов к выдаче": 0,
       "В пути": 1,
@@ -263,7 +253,7 @@ async function courierRequestCancel(orderId) {
       "3. Клиент передумал\n" +
       "4. Другое"
   );
-  
+
   if (!reason) return;
 
   if (!confirm(`Отправить запрос на отмену заказа #${orderId}?`)) return;
@@ -275,16 +265,30 @@ async function courierRequestCancel(orderId) {
       return;
     }
 
-    // Создаём тикет для администратора
+    // Создаём тикет для администратора с полной информацией
     await createTicket({
       order_id: orderId,
       client_id: order.user_id,
-      subject: `Запрос отмены заказа #${orderId}`,
-      description: `Курьер запросил отмену.\nПричина: ${reason}\n\nЗаказ: #${orderId}\nКлиент: ${order.client_name}\nТелефон: ${order.client_phone}\nАдрес: ${order.delivery_address}`,
+      subject: `🚨 Запрос отмены заказа #${orderId}`,
+      description: [
+        `Заказ: #${orderId}`,
+        `Клиент: ${order.client_name}`,
+        `Телефон клиента: ${order.client_phone}`,
+        `Адрес доставки: ${order.delivery_address || "Не указан"}`,
+        `Сумма заказа: ${order.total} ₽`,
+        ``,
+        `Причина отмены: ${reason}`,
+        ``,
+        `Комментарий курьера: Курьер запросил отмену заказа.`,
+        `Пожалуйста, свяжитесь с клиентом по телефону ${order.client_phone} для уточнения.`,
+      ].join("\n"),
       status: "Новое",
     });
 
-    alert("✅ Запрос на отмену отправлен администратору");
+    alert(
+      "✅ Запрос на отмену отправлен администратору.\n" +
+        "Администратор свяжется с клиентом и примет решение."
+    );
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
