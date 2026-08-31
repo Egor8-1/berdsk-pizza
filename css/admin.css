@@ -1,9 +1,9 @@
 /* ============================================================
-   BERDSK_PIZZA — СТРОГИЙ ДИЗАЙН (Админ, Оператор, Кухня, Курьер)
+   BERDSK_PIZZA — АДМИН, ОПЕРАТОР, КУХНЯ, КУРЬЕР
    Четкие линии, таблицы, строгий стиль
    ============================================================ */
 
-/* ===== Sidebar ===== */
+/* ===== SIDEBAR ===== */
 .admin-sidebar,
 .operator-sidebar,
 .kitchen-sidebar,
@@ -80,7 +80,7 @@
   color: #fff;
 }
 
-/* ===== Content ===== */
+/* ===== CONTENT ===== */
 .admin-content,
 .operator-content,
 .kitchen-content,
@@ -92,7 +92,7 @@
   min-height: 100vh;
 }
 
-/* ===== Dashboard Stats ===== */
+/* ===== DASHBOARD STATS ===== */
 .dashboard__stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -124,7 +124,7 @@
   color: #28a745;
 }
 
-/* ===== Tables ===== */
+/* ===== TABLES ===== */
 .admin-table-wrap {
   background: #fff;
   border: 1px solid #e0e0e0;
@@ -161,7 +161,7 @@
   padding: 8px 16px;
 }
 
-/* ===== Tabs (кухня, оператор) ===== */
+/* ===== TABS ===== */
 .kitchen__tab,
 .operator__tab,
 .courier__tab {
@@ -202,7 +202,7 @@
   color: #fff;
 }
 
-/* ===== Kitchen/Operator/Courier Cards ===== */
+/* ===== ORDER CARDS ===== */
 .kitchen__order,
 .operator__order,
 .courier__order {
@@ -219,7 +219,7 @@
   border-color: #f37321;
 }
 
-/* ===== Reports ===== */
+/* ===== REPORTS ===== */
 .reports__section {
   background: #fff;
   border: 1px solid #e0e0e0;
@@ -253,10 +253,16 @@
   background: #fafafa;
 }
 
-/* ============================================================
-   RESPONSIVE
-   ============================================================ */
+.report-card {
+  transition: all 0.3s ease;
+}
+.report-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border-color: #f37321;
+}
 
+/* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
   .admin-sidebar,
   .operator-sidebar,
