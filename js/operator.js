@@ -1,6 +1,6 @@
 // ============================================================
 //  BERDSK_PIZZA — ОПЕРАТОР
-//  Полностью переписанный модуль
+//  Полностью переписанный и исправленный модуль
 // ============================================================
 
 let operatorFilterStatus = "Все";
@@ -93,9 +93,11 @@ async function renderOperatorOrders(filterStatus) {
       "Выдан": 6,
       "Отменен": 7,
     };
-    filtered.sort((a, b) => (priority[a.status] || 99) - (priority[b.status] || 99));
+    filtered.sort(
+      (a, b) => (priority[a.status] || 99) - (priority[b.status] || 99)
+    );
 
-    // Подсчёт для вкладок
+    // Подсчёт
     const counts = {};
     statuses.forEach((s) => {
       counts[s] =
@@ -177,7 +179,7 @@ async function renderOperatorOrders(filterStatus) {
                   : ""
               }
               ${
-                order.status === "Готов к выдаче"
+                order.status === "Готов к выдаче" && order.order_type === "pickup"
                   ? `<button class="btn btn--primary btn--small" onclick="operatorMarkDelivered(${order.id})">📦 Выдан</button>`
                   : ""
               }
@@ -228,22 +230,40 @@ async function operatorCancelOrder(orderId) {
   if (!confirm(`Отменить заказ #${orderId}?`)) return;
 
   try {
+    const order = await getOrder(orderId);
+    if (!order) {
+      alert("❌ Заказ не найден");
+      return;
+    }
+
     await updateOrder(orderId, {
       status: "Отменен",
       cancel_reason: reason,
+      is_refunded: true,
+      refund_amount: order.total,
     });
     renderOperatorOrders();
-    alert("✅ Заказ отменён");
+    alert("✅ Заказ отменён. Деньги возвращены клиенту.");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
 }
 
-// ===== ВЫДАН =====
+// ===== ВЫДАН (только для самовывоза) =====
 async function operatorMarkDelivered(orderId) {
   if (!confirm(`Подтвердить выдачу заказа #${orderId}?`)) return;
 
   try {
+    const order = await getOrder(orderId);
+    if (!order) {
+      alert("❌ Заказ не найден");
+      return;
+    }
+    if (order.order_type !== "pickup") {
+      alert("❌ Этот заказ на доставку, его выдаёт курьер");
+      return;
+    }
+
     await updateOrder(orderId, { status: "Выдан" });
     renderOperatorOrders();
     alert("✅ Заказ выдан клиенту");
@@ -286,7 +306,8 @@ async function operatorViewOrder(orderId) {
         `Тип: ${order.order_type === "delivery" ? "Доставка" : "Самовывоз"}\n` +
         `${location}\n` +
         `Статус: ${order.status}\n` +
-        `Сумма: ${order.total} ₽\n\n` +
+        `Сумма: ${order.total} ₽\n` +
+        `Возврат: ${order.is_refunded ? "✅ Да" : "❌ Нет"}\n\n` +
         `Состав:\n${itemsText}\n\n` +
         `Комментарий: ${order.comment || "Нет"}`
     );
@@ -313,6 +334,11 @@ async function renderOperatorTickets() {
       "Возврат": "🔄 Возврат",
     };
 
+    // Оператор видит только обычные обращения, не запросы отмены от курьеров
+    const operatorTickets = tickets.filter(
+      (t) => !t.subject.includes("Запрос отмены")
+    );
+
     let html = `
       <div>
         <h1 style="font-size:24px; font-weight:700; margin-bottom:20px;">🎫 Обращения клиентов</h1>
@@ -322,6 +348,7 @@ async function renderOperatorTickets() {
               <tr>
                 <th>ID</th>
                 <th>Клиент</th>
+                <th>Телефон</th>
                 <th>Тема</th>
                 <th>Статус</th>
                 <th>Действия</th>
@@ -330,20 +357,25 @@ async function renderOperatorTickets() {
             <tbody>
     `;
 
-    if (tickets.length === 0) {
-      html += `<tr><td colspan="5" style="text-align:center; color:#999;">Нет обращений</td></tr>`;
+    if (operatorTickets.length === 0) {
+      html += `<tr><td colspan="6" style="text-align:center; color:#999;">Нет обращений</td></tr>`;
     } else {
-      tickets.forEach((t) => {
+      operatorTickets.forEach((t) => {
         const user = users.find((u) => u.id === t.client_id);
         html += `
           <tr>
             <td>#${t.id}</td>
             <td>${user ? user.name : "Неизвестно"}</td>
+            <td>${user?.phone || "—"}</td>
             <td>${t.subject}</td>
             <td>${statusLabels[t.status] || t.status}</td>
             <td>
               <button class="btn btn--primary btn--small" onclick="operatorViewTicket(${t.id})">👁️</button>
-              <button class="btn btn--success btn--small" onclick="operatorResolveTicket(${t.id})">✅ Решить</button>
+              ${
+                t.status === "Новое"
+                  ? `<button class="btn btn--success btn--small" onclick="operatorResolveTicket(${t.id})">✅ Решить</button>`
+                  : ""
+              }
             </td>
           </tr>
         `;
@@ -373,8 +405,9 @@ async function operatorViewTicket(id) {
     alert(
       `📩 Обращение #${t.id}\n` +
         `Клиент: ${user ? user.name : "Неизвестно"}\n` +
-        `Тема: ${t.subject}\n` +
-        `Описание: ${t.description}\n` +
+        `Телефон: ${user?.phone || "—"}\n` +
+        `Тема: ${t.subject}\n\n` +
+        `Описание:\n${t.description}\n\n` +
         `Статус: ${t.status}`
     );
   } catch (error) {
@@ -394,22 +427,72 @@ async function operatorResolveTicket(id) {
   let amount = 0;
   if (compensationType === "promocode") {
     amount = parseInt(prompt("Сумма промокода:"));
-  } else if (compensationType === "refund") {
-    amount = parseInt(prompt("Сумма возврата:"));
-  }
-
-  try {
+    if (!amount || amount <= 0) {
+      alert("❌ Введите корректную сумму");
+      return;
+    }
+    
+    // Создаём промокод
+    const code =
+      "PIZZA-" +
+      Math.random().toString(36).substring(2, 6).toUpperCase() +
+      "-" +
+      new Date().getFullYear();
+    
+    const promo = await createPromocode({
+      code: code,
+      user_id: (await getTicket(id)).client_id,
+      amount: amount,
+      expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+      created_by: getCurrentUser().id,
+    });
+    
     await updateTicket(id, {
       status: "Решено",
-      compensation_type: compensationType,
-      compensation_amount: amount || 0,
-      resolution: compensation,
+      compensation_type: "promocode",
+      compensation_amount: amount,
+      promocode_id: promo.id,
+      resolution: `Создан промокод ${code} на ${amount} ₽`,
     });
-    renderOperatorTickets();
-    alert("✅ Обращение решено");
-  } catch (error) {
-    alert("❌ Ошибка: " + error.message);
+    
+    alert(`✅ Обращение решено. Промокод ${code} на ${amount} ₽ создан.`);
+  } else if (compensationType === "refund") {
+    amount = parseInt(prompt("Сумма возврата:"));
+    if (!amount || amount <= 0) {
+      alert("❌ Введите корректную сумму");
+      return;
+    }
+    
+    const ticket = await getTicket(id);
+    if (ticket.order_id) {
+      const order = await getOrder(ticket.order_id);
+      if (order) {
+        await updateOrder(order.id, {
+          is_refunded: true,
+          refund_amount: amount,
+        });
+      }
+    }
+    
+    await updateTicket(id, {
+      status: "Решено",
+      compensation_type: "refund",
+      compensation_amount: amount,
+      resolution: `Возврат ${amount} ₽`,
+    });
+    
+    alert(`✅ Обращение решено. Возврат ${amount} ₽ выполнен.`);
+  } else {
+    await updateTicket(id, {
+      status: "Решено",
+      compensation_type: "none",
+      compensation_amount: 0,
+      resolution: "Без компенсации",
+    });
+    alert("✅ Обращение решено без компенсации.");
   }
+
+  renderOperatorTickets();
 }
 
 // ============================================================
