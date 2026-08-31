@@ -1,6 +1,6 @@
 // ============================================================
 //  BERDSK_PIZZA — КЛИЕНТ
-//  Полностью переписанный модуль
+//  Полностью переписанный и исправленный модуль
 // ============================================================
 
 let cart = [];
@@ -33,6 +33,9 @@ function navigateTo(page) {
       break;
     case 'bonuses':
       renderBonuses();
+      break;
+    case 'support':
+      renderSupport();
       break;
     default:
       renderCatalog(currentCategory);
@@ -113,7 +116,6 @@ async function renderCatalog(category = 'Все') {
     const products = await getProducts();
     const activeProducts = products.filter((p) => !p.is_stopped && p.is_active !== false);
 
-    // Собираем категории
     const categories = ['Все'];
     activeProducts.forEach((p) => {
       if (!categories.includes(p.category)) {
@@ -121,7 +123,6 @@ async function renderCatalog(category = 'Все') {
       }
     });
 
-    // Фильтруем
     let filtered = activeProducts;
     if (category !== 'Все') {
       filtered = activeProducts.filter((p) => p.category === category);
@@ -221,6 +222,8 @@ async function renderCart() {
   }
 
   const subtotal = calculateSubtotal(cartItems);
+  const discount = activeBonusAmount + (activePromocode?.amount || 0);
+  const total = Math.max(0, subtotal - discount);
 
   let html = `<div class="cart"><h1 class="cart__title">🛒 Корзина</h1>`;
 
@@ -263,10 +266,12 @@ async function renderCart() {
       ` : ''}
       <div class="cart__summary-row total">
         <span>Итого</span>
-        <span>${Math.max(0, subtotal - activeBonusAmount - (activePromocode?.amount || 0))} ₽</span>
+        <span>${total} ₽</span>
       </div>
       <div class="cart__summary-actions">
         <button class="btn btn--primary" onclick="checkout()">📦 Оформить заказ</button>
+        <button class="btn btn--outline" onclick="applyPromocode()">🎁 Промокод</button>
+        <button class="btn btn--outline" onclick="applyBonuses()">💰 Бонусы</button>
         <button class="btn btn--danger" onclick="clearCart(); renderCart();">🧹 Очистить</button>
         <button class="btn btn--secondary" onclick="navigateTo('catalog')">← Продолжить покупки</button>
       </div>
@@ -274,6 +279,107 @@ async function renderCart() {
   </div>`;
 
   container.innerHTML = html;
+}
+
+// ============================================================
+//  ПРИМЕНЕНИЕ ПРОМОКОДА
+// ============================================================
+
+async function applyPromocode() {
+  const user = getCurrentUser();
+  if (!user) {
+    alert('⚠️ Для применения промокода необходимо авторизоваться');
+    const authModal = document.getElementById('authModal');
+    if (authModal) authModal.classList.add('active');
+    return;
+  }
+
+  const code = prompt('Введите промокод:');
+  if (!code) return;
+
+  try {
+    const promocode = await getPromocodeByCode(code.trim().toUpperCase());
+    if (!promocode) {
+      alert('❌ Промокод не найден');
+      return;
+    }
+    if (promocode.is_used) {
+      alert('❌ Промокод уже использован');
+      return;
+    }
+    if (promocode.expires_at && new Date(promocode.expires_at) < new Date()) {
+      alert('❌ Промокод истёк');
+      return;
+    }
+    if (promocode.user_id && promocode.user_id !== user.id) {
+      alert('❌ Промокод привязан к другому пользователю');
+      return;
+    }
+
+    activePromocode = promocode;
+    renderCart();
+    alert(`✅ Промокод применён: −${promocode.amount} ₽`);
+  } catch (error) {
+    alert('❌ Ошибка: ' + error.message);
+  }
+}
+
+// ============================================================
+//  ПРИМЕНЕНИЕ БОНУСОВ
+// ============================================================
+
+async function applyBonuses() {
+  const user = getCurrentUser();
+  if (!user) {
+    alert('⚠️ Для использования бонусов необходимо авторизоваться');
+    const authModal = document.getElementById('authModal');
+    if (authModal) authModal.classList.add('active');
+    return;
+  }
+
+  const cartItems = await getCartDetails();
+  if (cartItems.length === 0) {
+    alert('❌ Корзина пуста');
+    return;
+  }
+
+  const subtotal = calculateSubtotal(cartItems);
+  const maxBonus = Math.floor(subtotal * 0.3);
+
+  if (maxBonus <= 0) {
+    alert('❌ Недостаточно товаров для списания бонусов');
+    return;
+  }
+
+  const balance = await getBonusBalance(user.id);
+  if (balance <= 0) {
+    alert('❌ У вас нет доступных бонусов');
+    return;
+  }
+
+  const amount = prompt(
+    `Доступно бонусов: ${balance}\nМожно списать до: ${maxBonus} (30% от заказа)\nВведите сумму:`
+  );
+
+  if (!amount) return;
+  const numAmount = parseInt(amount);
+
+  if (isNaN(numAmount) || numAmount <= 0) {
+    alert('❌ Введите корректную сумму');
+    return;
+  }
+  if (numAmount > balance) {
+    alert('❌ Недостаточно бонусов');
+    return;
+  }
+  if (numAmount > maxBonus) {
+    alert(`❌ Можно списать не более ${maxBonus} бонусов (30% от заказа)`);
+    return;
+  }
+
+  activeBonusAmount = numAmount;
+  renderCart();
+  alert(`✅ Бонусы применены: −${numAmount} ₽`);
 }
 
 // ============================================================
@@ -296,14 +402,11 @@ async function checkout() {
   }
 
   const subtotal = calculateSubtotal(cartItems);
-  const totalAfterDiscounts = Math.max(
-    0,
-    subtotal - activeBonusAmount - (activePromocode?.amount || 0)
-  );
+  const discount = activeBonusAmount + (activePromocode?.amount || 0);
+  const totalAfterDiscounts = Math.max(0, subtotal - discount);
 
   const container = document.getElementById('content');
 
-  // Получаем пункты выдачи
   const points = await getPickupPoints();
   const activePoints = points.filter((p) => p.is_active !== false);
 
@@ -313,12 +416,9 @@ async function checkout() {
   }
 
   const pointsHtml = activePoints
-    .map(
-      (p) => `<option value="${p.id}">${p.name} — ${p.address}</option>`
-    )
+    .map((p) => `<option value="${p.id}">${p.name} — ${p.address}</option>`)
     .join('');
 
-  // Состав заказа
   const itemsHtml = cartItems
     .map(
       (item) =>
@@ -431,13 +531,10 @@ async function submitOrder() {
   }
 
   const subtotal = calculateSubtotal(cartItems);
+  const discount = activeBonusAmount + (activePromocode?.amount || 0);
   const totalWithDelivery = subtotal + deliveryCost;
-  const finalTotal = Math.max(
-    0,
-    totalWithDelivery - activeBonusAmount - (activePromocode?.amount || 0)
-  );
+  const finalTotal = Math.max(0, totalWithDelivery - discount);
 
-  // Проверка крупного заказа (общее количество > 30)
   const totalQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const isLargeOrder = totalQuantity > 30;
 
@@ -463,12 +560,10 @@ async function submitOrder() {
   try {
     const createdOrder = await createOrder(orderData);
 
-    // Если использовался промокод — помечаем как использованный
     if (activePromocode) {
       await usePromocode(activePromocode.code, createdOrder.id);
     }
 
-    // Если списывались бонусы — создаём транзакцию
     if (activeBonusAmount > 0) {
       await spendBonuses(user.id, activeBonusAmount, createdOrder.id);
     }
@@ -482,88 +577,6 @@ async function submitOrder() {
   } catch (error) {
     alert('❌ Ошибка: ' + error.message);
   }
-}
-
-// ============================================================
-//  ПРИМЕНЕНИЕ ПРОМОКОДА И БОНУСОВ
-// ============================================================
-
-async function applyPromocode() {
-  const code = prompt('Введите промокод:');
-  if (!code) return;
-
-  try {
-    const promocode = await getPromocodeByCode(code);
-    if (!promocode) {
-      alert('❌ Промокод не найден');
-      return;
-    }
-    if (promocode.is_used) {
-      alert('❌ Промокод уже использован');
-      return;
-    }
-    if (promocode.expires_at && new Date(promocode.expires_at) < new Date()) {
-      alert('❌ Промокод истёк');
-      return;
-    }
-    if (promocode.user_id && promocode.user_id !== getCurrentUser()?.id) {
-      alert('❌ Промокод не привязан к вашему аккаунту');
-      return;
-    }
-
-    activePromocode = promocode;
-    renderCart();
-    alert(`✅ Промокод применён: −${promocode.amount} ₽`);
-  } catch (error) {
-    alert('❌ Ошибка: ' + error.message);
-  }
-}
-
-async function applyBonuses() {
-  const user = getCurrentUser();
-  if (!user) {
-    alert('⚠️ Необходимо авторизоваться');
-    return;
-  }
-
-  const cartItems = await getCartDetails();
-  const subtotal = calculateSubtotal(cartItems);
-  const maxBonus = Math.floor(subtotal * 0.3); // до 30% от суммы заказа
-
-  if (maxBonus <= 0) {
-    alert('❌ Недостаточно товаров для списания бонусов');
-    return;
-  }
-
-  const balance = await getBonusBalance(user.id);
-  if (balance <= 0) {
-    alert('❌ У вас нет доступных бонусов');
-    return;
-  }
-
-  const amount = prompt(
-    `Доступно бонусов: ${balance}\nМожно списать до: ${maxBonus}\nВведите сумму:`
-  );
-
-  if (!amount) return;
-  const numAmount = parseInt(amount);
-
-  if (isNaN(numAmount) || numAmount <= 0) {
-    alert('❌ Введите корректную сумму');
-    return;
-  }
-  if (numAmount > balance) {
-    alert('❌ Недостаточно бонусов');
-    return;
-  }
-  if (numAmount > maxBonus) {
-    alert(`❌ Можно списать не более ${maxBonus} бонусов (30% от заказа)`);
-    return;
-  }
-
-  activeBonusAmount = numAmount;
-  renderCart();
-  alert(`✅ Бонусы применены: −${numAmount} ₽`);
 }
 
 // ============================================================
@@ -631,6 +644,10 @@ async function renderOrders() {
           ? `🛵 Доставка: ${order.delivery_address}`
           : `📍 ${point ? point.name : 'Пункт выдачи'}`;
 
+      const refundLabel = order.is_refunded
+        ? '<span style="color:#28a745; font-weight:600;">💰 Деньги возвращены</span>'
+        : '';
+
       html += `
         <div class="order-card" onclick="showOrderTracking(${order.id})">
           <div class="order-card__header">
@@ -641,6 +658,7 @@ async function renderOrders() {
           <div class="order-card__meta">${typeLabel}</div>
           ${order.comment ? `<div class="order-card__meta">💬 ${order.comment}</div>` : ''}
           <div class="order-card__total">${order.total} ₽</div>
+          ${refundLabel}
           <div class="order-card__meta">📅 ${new Date(order.created_at).toLocaleString('ru-RU')}</div>
         </div>
       `;
@@ -698,11 +716,16 @@ async function showOrderTracking(orderId) {
         ? `🛵 Доставка: ${order.delivery_address}`
         : `📍 ${point ? point.name : 'Пункт выдачи'} — ${point ? point.address : ''}`;
 
+    const refundInfo = order.is_refunded
+      ? '<div style="padding:12px 16px; background:#d4edda; border-radius:8px; color:#155724; font-weight:600; margin-bottom:16px;">💰 Деньги возвращены</div>'
+      : '';
+
     const container = document.getElementById('content');
     container.innerHTML = `
       <div class="tracking">
         <h1>📦 Заказ #${order.id}</h1>
         <p style="color:#888; margin-bottom:16px;">Отслеживание статуса</p>
+        ${refundInfo}
         <div style="padding:12px 16px; background:#f8f9fa; border-radius:8px; max-width:500px; margin-bottom:16px;">
           <strong>Текущий статус:</strong> ${statusLabels[order.status] || order.status}
         </div>
@@ -726,6 +749,7 @@ async function showOrderTracking(orderId) {
         <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
           <button class="btn btn--secondary" onclick="navigateTo('orders')">← Вернуться</button>
           <button class="btn btn--primary" onclick="window.print()">🖨️ Распечатать</button>
+          <button class="btn btn--outline" onclick="createSupportTicket(${order.id})">📩 Написать обращение</button>
         </div>
       </div>
     `;
@@ -800,6 +824,131 @@ async function renderBonuses() {
 }
 
 // ============================================================
+//  ОБРАЩЕНИЯ (ТИКЕТЫ)
+// ============================================================
+
+async function renderSupport() {
+  const container = document.getElementById('content');
+  if (!container) return;
+
+  const user = getCurrentUser();
+  if (!user) {
+    container.innerHTML = `
+      <div class="bonuses">
+        <h1>📩 Обращения</h1>
+        <p style="color:#999;">Авторизуйтесь для просмотра обращений</p>
+        <button class="btn btn--primary" onclick="document.getElementById('authModal').classList.add('active')">🔑 Войти</button>
+      </div>
+    `;
+    return;
+  }
+
+  try {
+    const tickets = await getTicketsByUser(user.id);
+
+    const statusLabels = {
+      'Новое': '🟡 Новое',
+      'В работе': '🟠 В работе',
+      'Решено': '✅ Решено',
+      'Возврат': '🔄 Возврат',
+    };
+
+    let html = `
+      <div class="bonuses">
+        <h1>📩 Мои обращения</h1>
+        <button class="btn btn--primary" onclick="showCreateTicketForm()" style="margin-bottom:20px;">➕ Новое обращение</button>
+    `;
+
+    if (tickets.length === 0) {
+      html += `<p style="color:#999;">У вас нет обращений</p>`;
+    } else {
+      tickets.forEach((t) => {
+        html += `
+          <div style="background:#fff; padding:16px 20px; border-radius:12px; margin-bottom:12px; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <strong>${t.subject}</strong>
+              <span>${statusLabels[t.status] || t.status}</span>
+            </div>
+            <div style="font-size:14px; color:#555; margin-top:4px;">${t.description}</div>
+            <div style="font-size:12px; color:#999; margin-top:4px;">📅 ${new Date(t.created_at).toLocaleString('ru-RU')}</div>
+          </div>
+        `;
+      });
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+  } catch (error) {
+    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
+  }
+}
+
+function showCreateTicketForm(orderId = null) {
+  const container = document.getElementById('content');
+
+  const orderSelect = orderId
+    ? `<input type="hidden" id="ticketOrderId" value="${orderId}" />`
+    : `<div class="form-group">
+        <label>Номер заказа (необязательно)</label>
+        <input type="number" id="ticketOrderId" placeholder="Например: 123" />
+      </div>`;
+
+  container.innerHTML = `
+    <div class="bonuses">
+      <h1>📩 Новое обращение</h1>
+      <div style="background:#fff; padding:24px; border-radius:16px; max-width:500px; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+        ${orderSelect}
+        <div class="form-group">
+          <label>Тема</label>
+          <input type="text" id="ticketSubject" placeholder="Например: Проблема с заказом" />
+        </div>
+        <div class="form-group">
+          <label>Описание</label>
+          <textarea id="ticketDescription" rows="4" placeholder="Опишите вашу проблему"></textarea>
+        </div>
+        <button class="btn btn--primary btn--full" onclick="submitTicket()">📩 Отправить</button>
+        <button class="btn btn--secondary btn--full" style="margin-top:8px;" onclick="renderSupport()">← Назад</button>
+      </div>
+    </div>
+  `;
+}
+
+async function createSupportTicket(orderId) {
+  showCreateTicketForm(orderId);
+}
+
+async function submitTicket() {
+  const user = getCurrentUser();
+  if (!user) {
+    alert('❌ Необходимо авторизоваться');
+    return;
+  }
+
+  const orderId = document.getElementById('ticketOrderId')?.value;
+  const subject = document.getElementById('ticketSubject').value.trim();
+  const description = document.getElementById('ticketDescription').value.trim();
+
+  if (!subject || !description) {
+    alert('⚠️ Заполните тему и описание');
+    return;
+  }
+
+  try {
+    await createTicket({
+      order_id: orderId ? parseInt(orderId) : null,
+      client_id: user.id,
+      subject: subject,
+      description: description,
+      status: 'Новое',
+    });
+    alert('✅ Обращение отправлено');
+    renderSupport();
+  } catch (error) {
+    alert('❌ Ошибка: ' + error.message);
+  }
+}
+
+// ============================================================
 //  ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 
@@ -807,7 +956,6 @@ loadCart();
 updateCartCount();
 
 document.addEventListener('DOMContentLoaded', function () {
-  // Навигация
   document.querySelectorAll('.header__link[data-page]').forEach((link) => {
     link.addEventListener('click', function (e) {
       e.preventDefault();
@@ -815,7 +963,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  // Кнопка входа/выхода
   const authBtn = document.getElementById('authBtn');
   if (authBtn) {
     const user = getCurrentUser();
@@ -846,6 +993,7 @@ window.renderCatalog = renderCatalog;
 window.renderCart = renderCart;
 window.renderOrders = renderOrders;
 window.renderBonuses = renderBonuses;
+window.renderSupport = renderSupport;
 window.addToCart = addToCart;
 window.removeFromCart = removeFromCart;
 window.updateQuantity = updateQuantity;
@@ -856,3 +1004,5 @@ window.toggleDeliveryAddress = toggleDeliveryAddress;
 window.applyPromocode = applyPromocode;
 window.applyBonuses = applyBonuses;
 window.showOrderTracking = showOrderTracking;
+window.createSupportTicket = createSupportTicket;
+window.submitTicket = submitTicket;
