@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
@@ -23,12 +23,10 @@
           🍕 <span>БЕРДСК</span>_PIZZA
         </div>
         <nav class="header__nav" id="mainNav">
-          <a href="#" class="header__link active" data-page="catalog"
-            >Каталог</a
-          >
-          <a href="#" class="header__link" data-page="cart"
-            >Корзина <span class="cart-count" id="cartCount">0</span></a
-          >
+          <a href="#" class="header__link active" data-page="catalog">Каталог</a>
+          <a href="#" class="header__link" data-page="cart">
+            Корзина <span class="cart-count" id="cartCount">0</span>
+          </a>
           <a href="#" class="header__link" data-page="orders">Мои заказы</a>
           <a href="#" class="header__link" data-page="bonuses">Мои бонусы</a>
         </nav>
@@ -62,42 +60,19 @@
           <form id="authForm" onsubmit="return false;">
             <div class="form-group">
               <label>Логин</label>
-              <input
-                type="text"
-                id="loginInput"
-                placeholder="Введите логин"
-                required
-              />
+              <input type="text" id="loginInput" placeholder="Введите логин" required />
             </div>
             <div class="form-group">
               <label>Пароль</label>
-              <input
-                type="password"
-                id="passwordInput"
-                placeholder="Введите пароль"
-                required
-              />
+              <input type="password" id="passwordInput" placeholder="Введите пароль" required />
             </div>
-            <button
-              type="button"
-              class="btn btn--primary btn--full"
-              onclick="handleLogin()"
-            >
+            <button type="button" class="btn btn--primary btn--full" onclick="handleLogin()">
               🔑 Войти
             </button>
           </form>
-          <p
-            style="
-              margin-top: 12px;
-              text-align: center;
-              font-size: 13px;
-              color: #666;
-            "
-          >
+          <p style="margin-top: 12px; text-align: center; font-size: 13px; color: #666;">
             Нет аккаунта?
-            <a href="#" id="showRegister" style="color: #f37321"
-              >Зарегистрироваться</a
-            >
+            <a href="#" id="showRegister" style="color: #f37321">Зарегистрироваться</a>
           </p>
         </div>
       </div>
@@ -114,47 +89,21 @@
           <form id="registerForm" onsubmit="return false;">
             <div class="form-group">
               <label>Имя</label>
-              <input
-                type="text"
-                id="regName"
-                placeholder="Введите ваше имя"
-                required
-              />
+              <input type="text" id="regName" placeholder="Введите ваше имя" required />
             </div>
             <div class="form-group">
               <label>Логин</label>
-              <input
-                type="text"
-                id="regLogin"
-                placeholder="Придумайте логин"
-                required
-              />
+              <input type="text" id="regLogin" placeholder="Придумайте логин" required />
             </div>
             <div class="form-group">
               <label>Пароль</label>
-              <input
-                type="password"
-                id="regPassword"
-                placeholder="Придумайте пароль"
-                required
-              />
+              <input type="password" id="regPassword" placeholder="Придумайте пароль" required />
             </div>
-            <button
-              type="button"
-              class="btn btn--primary btn--full"
-              onclick="handleRegister()"
-            >
+            <button type="button" class="btn btn--primary btn--full" onclick="handleRegister()">
               📝 Зарегистрироваться
             </button>
           </form>
-          <p
-            style="
-              margin-top: 12px;
-              text-align: center;
-              font-size: 13px;
-              color: #666;
-            "
-          >
+          <p style="margin-top: 12px; text-align: center; font-size: 13px; color: #666;">
             Уже есть аккаунт?
             <a href="#" id="showAuth" style="color: #f37321">Войти</a>
           </p>
