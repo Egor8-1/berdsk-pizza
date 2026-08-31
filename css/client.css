@@ -52,15 +52,13 @@
   gap: 24px;
 }
 
-/* ===== PRODUCT CARD (мультяшный) ===== */
+/* ===== PRODUCT CARD ===== */
 .product-card {
   background: #fff;
   border-radius: 20px;
   overflow: hidden;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  transition:
-    transform 0.3s ease,
-    box-shadow 0.3s ease;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
   cursor: pointer;
 }
 .product-card:hover {
@@ -275,7 +273,7 @@
   margin-top: 8px;
 }
 
-/* ===== ORDERS (клиент) ===== */
+/* ===== ORDERS ===== */
 .orders {
   padding: 32px 0;
 }
