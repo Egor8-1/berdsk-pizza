@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
@@ -24,34 +24,16 @@
           <span class="admin-user" id="adminUser">Администратор</span>
         </div>
         <nav class="admin-sidebar__nav">
-          <a href="#" class="admin-sidebar__link active" data-page="dashboard"
-            >📊 Дашборд</a
-          >
-          <a href="#" class="admin-sidebar__link" data-page="orders"
-            >📋 Все заказы</a
-          >
-          <a href="#" class="admin-sidebar__link" data-page="products"
-            >📦 Товары</a
-          >
-          <a href="#" class="admin-sidebar__link" data-page="points"
-            >📍 Пункты выдачи</a
-          >
-          <a href="#" class="admin-sidebar__link" data-page="users"
-            >👥 Пользователи</a
-          >
-          <a href="#" class="admin-sidebar__link" data-page="reports"
-            >📈 Отчеты</a
-          >
-          <a href="#" class="admin-sidebar__link" data-page="tickets"
-            >🎫 Тикеты</a
-          >
-          <a href="#" class="admin-sidebar__link" data-page="promocodes"
-            >🎁 Промокоды</a
-          >
+          <a href="#" class="admin-sidebar__link active" data-page="dashboard">📊 Дашборд</a>
+          <a href="#" class="admin-sidebar__link" data-page="orders">📋 Все заказы</a>
+          <a href="#" class="admin-sidebar__link" data-page="products">📦 Товары</a>
+          <a href="#" class="admin-sidebar__link" data-page="points">📍 Пункты выдачи</a>
+          <a href="#" class="admin-sidebar__link" data-page="users">👥 Пользователи</a>
+          <a href="#" class="admin-sidebar__link" data-page="reports">📈 Отчёты</a>
+          <a href="#" class="admin-sidebar__link" data-page="tickets">🎫 Тикеты</a>
+          <a href="#" class="admin-sidebar__link" data-page="promocodes">🎁 Промокоды</a>
         </nav>
-        <button class="btn btn--danger btn--full" id="logoutBtn">
-          🚪 Выйти
-        </button>
+        <button class="btn btn--danger btn--full" id="logoutBtn">🚪 Выйти</button>
       </aside>
 
       <!-- ===== MAIN CONTENT ===== -->
@@ -102,11 +84,7 @@
                 <option value="true">❌ В стопе</option>
               </select>
             </div>
-            <button
-              type="button"
-              class="btn btn--primary btn--full"
-              onclick="saveProduct()"
-            >
+            <button type="button" class="btn btn--primary btn--full" onclick="saveProduct()">
               💾 Сохранить
             </button>
           </form>
@@ -134,17 +112,13 @@
             </div>
             <div class="form-group">
               <label>Телефон</label>
-              <input
-                type="text"
-                id="pointPhone"
-                placeholder="+7 (383) 123-45-67"
-              />
+              <input type="text" id="pointPhone" placeholder="+7 (383) 123-45-67" />
             </div>
-            <button
-              type="button"
-              class="btn btn--primary btn--full"
-              onclick="savePoint()"
-            >
+            <div class="form-group">
+              <label>Часы работы</label>
+              <input type="text" id="pointWorkHours" placeholder="10:00 - 22:00" />
+            </div>
+            <button type="button" class="btn btn--primary btn--full" onclick="savePoint()">
               💾 Сохранить
             </button>
           </form>
