@@ -1,6 +1,6 @@
 // ============================================================
 //  BERDSK_PIZZA — АДМИН-ПАНЕЛЬ
-//  Полностью переписанный модуль
+//  Полностью переписанный и исправленный модуль
 // ============================================================
 
 let adminFilterStatus = "Все";
@@ -44,7 +44,11 @@ document.addEventListener("DOMContentLoaded", function () {
           renderUsersManagement();
           break;
         case "reports":
-          renderReports();
+          if (typeof renderReports === "function") {
+            renderReports();
+          } else {
+            alert("❌ Модуль отчётов не загружен");
+          }
           break;
         case "tickets":
           renderTicketsManagement();
@@ -95,10 +99,11 @@ async function renderDashboard() {
   if (!container) return;
 
   try {
-    const [orders, products, users] = await Promise.all([
+    const [orders, products, users, tickets] = await Promise.all([
       getOrders(),
       getProducts(),
       getUsers(),
+      getTickets(),
     ]);
 
     const totalOrders = orders.length;
@@ -115,8 +120,8 @@ async function renderDashboard() {
     ).length;
     const activeProducts = products.filter((p) => !p.is_stopped).length;
     const totalUsers = users.filter((u) => u.role === "client").length;
+    const openTickets = tickets.filter((t) => t.status === "Новое").length;
 
-    // Последние заказы
     const recentOrders = orders.slice(0, 5);
 
     container.innerHTML = `
@@ -150,6 +155,10 @@ async function renderDashboard() {
           <div class="stat-card">
             <div class="stat-card__label">Клиентов</div>
             <div class="stat-card__value">${totalUsers}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__label">Открытых тикетов</div>
+            <div class="stat-card__value" style="color:#e65100;">${openTickets}</div>
           </div>
         </div>
 
@@ -308,7 +317,8 @@ async function adminViewOrder(orderId) {
             : ""
         }` +
         `Статус: ${order.status}\n` +
-        `Сумма: ${order.total} ₽\n\n` +
+        `Сумма: ${order.total} ₽\n` +
+        `Возврат: ${order.is_refunded ? "✅ Да" : "❌ Нет"}\n\n` +
         `Состав:\n${itemsText}\n\n` +
         `Комментарий: ${order.comment || "Нет"}\n` +
         `Создан: ${new Date(order.created_at).toLocaleString("ru-RU")}`
@@ -364,9 +374,11 @@ async function adminCancelOrder(orderId) {
     await updateOrder(orderId, {
       status: "Отменен",
       cancel_reason: reason,
+      is_refunded: true,
+      refund_amount: (await getOrder(orderId)).total,
     });
     renderAllOrders();
-    alert("✅ Заказ отменён");
+    alert("✅ Заказ отменён. Деньги возвращены клиенту.");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
@@ -596,6 +608,7 @@ function showAddPoint() {
   document.getElementById("pointName").value = "";
   document.getElementById("pointAddress").value = "";
   document.getElementById("pointPhone").value = "";
+  document.getElementById("pointWorkHours").value = "10:00 - 22:00";
   document.getElementById("pointModal").classList.add("active");
 }
 
@@ -612,6 +625,7 @@ async function editPoint(id) {
     document.getElementById("pointName").value = p.name;
     document.getElementById("pointAddress").value = p.address;
     document.getElementById("pointPhone").value = p.phone || "";
+    document.getElementById("pointWorkHours").value = p.work_hours || "10:00 - 22:00";
     document.getElementById("pointModal").classList.add("active");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
@@ -624,6 +638,7 @@ async function savePoint() {
     name: document.getElementById("pointName").value.trim(),
     address: document.getElementById("pointAddress").value.trim(),
     phone: document.getElementById("pointPhone").value.trim(),
+    work_hours: document.getElementById("pointWorkHours").value.trim(),
   };
 
   if (!data.name || !data.address) {
@@ -763,7 +778,7 @@ async function deleteUserItem(id) {
 }
 
 // ============================================================
-//  ТИКЕТЫ
+//  ТИКЕТЫ (С ОТМЕНОЙ ЗАКАЗА)
 // ============================================================
 
 async function renderTicketsManagement() {
@@ -788,7 +803,9 @@ async function renderTicketsManagement() {
             <thead>
               <tr>
                 <th>ID</th>
+                <th>Тип</th>
                 <th>Клиент</th>
+                <th>Телефон</th>
                 <th>Тема</th>
                 <th>Статус</th>
                 <th>Действия</th>
@@ -798,19 +815,32 @@ async function renderTicketsManagement() {
     `;
 
     if (tickets.length === 0) {
-      html += `<tr><td colspan="5" style="text-align:center; color:#999;">Нет тикетов</td></tr>`;
+      html += `<tr><td colspan="7" style="text-align:center; color:#999;">Нет тикетов</td></tr>`;
     } else {
       tickets.forEach((t) => {
         const user = users.find((u) => u.id === t.client_id);
+        const isCancelRequest = t.subject.includes("Запрос отмены");
+        
         html += `
           <tr>
             <td>#${t.id}</td>
+            <td>${isCancelRequest ? "🚨 Отмена" : "📩 Обращение"}</td>
             <td>${user ? user.name : "Неизвестно"}</td>
+            <td>${user?.phone || "—"}</td>
             <td>${t.subject}</td>
             <td>${statusLabels[t.status] || t.status}</td>
             <td>
               <button class="btn btn--primary btn--small" onclick="adminViewTicket(${t.id})">👁️</button>
-              <button class="btn btn--success btn--small" onclick="adminResolveTicket(${t.id})">✅ Решить</button>
+              ${
+                isCancelRequest && t.status === "Новое"
+                  ? `<button class="btn btn--danger btn--small" onclick="adminCancelOrderFromTicket(${t.id})">❌ Отменить заказ</button>`
+                  : ""
+              }
+              ${
+                !isCancelRequest && t.status === "Новое"
+                  ? `<button class="btn btn--success btn--small" onclick="adminResolveTicket(${t.id})">✅ Решить</button>`
+                  : ""
+              }
             </td>
           </tr>
         `;
@@ -837,15 +867,56 @@ async function adminViewTicket(id) {
       return;
     }
     const user = await getUser(t.client_id);
+    const order = t.order_id ? await getOrder(t.order_id) : null;
+
     alert(
       `📩 Тикет #${t.id}\n` +
+        `Тип: ${t.subject.includes("Запрос отмены") ? "🚨 Запрос отмены" : "📩 Обращение"}\n` +
         `Клиент: ${user ? user.name : "Неизвестно"}\n` +
-        `Тема: ${t.subject}\n` +
-        `Описание: ${t.description}\n` +
+        `Телефон: ${user?.phone || "—"}\n` +
+        `Тема: ${t.subject}\n\n` +
+        `Описание:\n${t.description}\n\n` +
         `Статус: ${t.status}\n` +
-        `Компенсация: ${t.compensation_type || "Нет"}\n` +
-        `Создан: ${new Date(t.created_at).toLocaleString("ru-RU")}`
+        `Создан: ${new Date(t.created_at).toLocaleString("ru-RU")}` +
+        (order ? `\n\nЗаказ: #${order.id} (${order.status})` : "")
     );
+  } catch (error) {
+    alert("❌ Ошибка: " + error.message);
+  }
+}
+
+async function adminCancelOrderFromTicket(ticketId) {
+  if (!confirm("Отменить заказ и вернуть деньги клиенту?")) return;
+
+  try {
+    const ticket = await getTicket(ticketId);
+    if (!ticket) {
+      alert("❌ Тикет не найден");
+      return;
+    }
+
+    const order = await getOrder(ticket.order_id);
+    if (!order) {
+      alert("❌ Заказ не найден");
+      return;
+    }
+
+    // Отменяем заказ
+    await updateOrder(order.id, {
+      status: "Отменен",
+      cancel_reason: "Запрос курьера через тикет #" + ticketId,
+      is_refunded: true,
+      refund_amount: order.total,
+    });
+
+    // Обновляем тикет
+    await updateTicket(ticketId, {
+      status: "Решено",
+      resolution: "Заказ отменён, деньги возвращены",
+    });
+
+    renderTicketsManagement();
+    alert("✅ Заказ отменён. Деньги возвращены клиенту.");
   } catch (error) {
     alert("❌ Ошибка: " + error.message);
   }
@@ -957,6 +1028,7 @@ window.renderPromocodesManagement = renderPromocodesManagement;
 window.adminViewOrder = adminViewOrder;
 window.adminChangeStatus = adminChangeStatus;
 window.adminCancelOrder = adminCancelOrder;
+window.adminCancelOrderFromTicket = adminCancelOrderFromTicket;
 
 window.showAddProduct = showAddProduct;
 window.editProduct = editProduct;
