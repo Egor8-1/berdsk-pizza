@@ -1,7 +1,13 @@
 /* ============================================================
    BERDSK_PIZZA — АДМИН, ОПЕРАТОР, КУХНЯ, КУРЬЕР
-   Четкие линии, таблицы, строгий стиль
+   Версия 3.0 — + аудит, отчёты, курьеры, промокоды
    ============================================================ */
+
+/* ===== LAYOUT ===== */
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+}
 
 /* ===== SIDEBAR ===== */
 .admin-sidebar,
@@ -51,6 +57,7 @@
   flex-direction: column;
   gap: 2px;
   margin-top: 20px;
+  margin-bottom: 20px;
 }
 
 .admin-sidebar__link,
@@ -64,6 +71,7 @@
   font-weight: 500;
   font-size: 14px;
   cursor: pointer;
+  display: block;
 }
 .admin-sidebar__link:hover,
 .operator-sidebar__link:hover,
@@ -90,6 +98,7 @@
   padding: 32px;
   background: #f5f5f5;
   min-height: 100vh;
+  width: calc(100% - 240px);
 }
 
 /* ===== DASHBOARD STATS ===== */
@@ -155,13 +164,17 @@
   background: #fafafa;
 }
 .admin-table td:last-child {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
   padding: 8px 16px;
 }
 
-/* ===== TABS ===== */
+/* Кнопки в последней колонке таблицы */
+.admin-table td:last-child .btn {
+  display: inline-block;
+  margin-right: 4px;
+  margin-bottom: 4px;
+}
+
+/* ===== TABS (кухня, оператор, курьер) ===== */
 .kitchen__tab,
 .operator__tab,
 .courier__tab {
@@ -248,18 +261,107 @@
   font-weight: 600;
   color: #555;
   font-size: 13px;
+  background: #f8f9fa;
 }
 .reports__section table tr:hover td {
   background: #fafafa;
 }
 
+/* Карточки отчётов */
 .report-card {
   transition: all 0.3s ease;
+  border: 1px solid #eee;
 }
 .report-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
   border-color: #f37321;
+}
+
+/* ===== ПРОМОКОДЫ НА ОДОБРЕНИИ ===== */
+.promo-pending-block {
+  background: #fff3cd;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  border: 2px solid #ffc107;
+}
+.promo-pending-block h3 {
+  color: #856404;
+}
+
+/* ===== КУРЬЕР — КАРТОЧКИ ЗАКАЗОВ ===== */
+.courier-order-card {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+}
+.courier-order-card:hover {
+  border-color: #f37321;
+  box-shadow: 0 2px 12px rgba(243, 115, 33, 0.1);
+}
+
+.courier-address-block {
+  background: #f8f9fa;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin: 8px 0;
+}
+
+/* ===== АУДИТ ===== */
+.audit-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.audit-log-row {
+  font-size: 13px;
+}
+
+/* ===== УВЕДОМЛЕНИЯ ===== */
+.info-banner {
+  background: #e7f3ff;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: #0066cc;
+  border-left: 4px solid #0066cc;
+}
+
+.warning-banner {
+  background: #fff3cd;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: #856404;
+  border-left: 4px solid #ffc107;
+}
+
+.success-banner {
+  background: #d4edda;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: #155724;
+  border-left: 4px solid #28a745;
+}
+
+.danger-banner {
+  background: #f8d7da;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: #721c24;
+  border-left: 4px solid #dc3545;
 }
 
 /* ===== RESPONSIVE ===== */
@@ -292,6 +394,7 @@
     flex-wrap: wrap;
     width: 100%;
     margin-top: 8px;
+    margin-bottom: 8px;
   }
   .admin-sidebar__link,
   .operator-sidebar__link,
@@ -315,6 +418,7 @@
   .courier-content {
     margin-left: 0;
     padding: 16px;
+    width: 100%;
   }
   .dashboard__stats {
     grid-template-columns: 1fr 1fr;
