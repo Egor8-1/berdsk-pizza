@@ -1,6 +1,6 @@
 // ============================================================
 //  BERDSK_PIZZA — КУХНЯ
-//  Полностью переписанный модуль
+//  Версия 3.0 — чистые кнопки, аудит, таймеры
 // ============================================================
 
 let kitchenFilterStatus = "Все";
@@ -17,13 +17,11 @@ document.addEventListener("DOMContentLoaded", function () {
   const kitchenUserEl = document.getElementById("kitchenUser");
   if (kitchenUserEl) kitchenUserEl.textContent = user.name || user.login;
 
-  // Выход
   const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
   renderKitchenMode();
-  
-  // Обновление каждые 30 секунд для таймеров
+
   kitchenTimerInterval = setInterval(() => {
     if (document.getElementById("kitchenContent")) {
       renderKitchenMode(kitchenFilterStatus);
@@ -31,7 +29,6 @@ document.addEventListener("DOMContentLoaded", function () {
   }, 30000);
 });
 
-// Очистка таймера при уходе со страницы
 window.addEventListener("beforeunload", function () {
   if (kitchenTimerInterval) {
     clearInterval(kitchenTimerInterval);
@@ -48,9 +45,11 @@ async function renderKitchenMode(filterStatus) {
   if (!container) return;
 
   try {
-    const orders = await getOrders();
+    const [orders, products] = await Promise.all([
+      getOrders(),
+      getProducts(),
+    ]);
 
-    // Кухня видит только заказы на приготовление
     const kitchenStatuses = [
       "Новый",
       "Ожидает подтверждения",
@@ -75,7 +74,6 @@ async function renderKitchenMode(filterStatus) {
       filtered = kitchenOrders.filter((o) => o.status === kitchenFilterStatus);
     }
 
-    // Сортировка по приоритету
     const priority = {
       "Ожидает подтверждения": 0,
       "Новый": 1,
@@ -86,7 +84,6 @@ async function renderKitchenMode(filterStatus) {
       (a, b) => (priority[a.status] || 99) - (priority[b.status] || 99)
     );
 
-    // Подсчёт для вкладок
     const counts = {};
     statuses.forEach((s) => {
       counts[s] =
@@ -97,7 +94,7 @@ async function renderKitchenMode(filterStatus) {
 
     let html = `
       <div>
-        <h1 style="font-size:24px; font-weight:700; margin-bottom:8px;">👨‍🍳 Режим кухни</h1>
+        <h1 style="font-size:24px; font-weight:700; margin-bottom:8px;">Режим кухни</h1>
         <p style="color:#888; margin-bottom:20px;">Управление приготовлением заказов</p>
 
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
@@ -126,12 +123,15 @@ async function renderKitchenMode(filterStatus) {
         const isOverdue = checkIfOverdue(order);
         const timerInfo = getTimerInfo(order);
 
-        // Состав заказа
+        // Состав заказа с названиями товаров
         const itemsSummary = order.items
-          .map((item) => `${item.quantity}×${item.productId}`)
+          .map((item) => {
+            const product = products.find((p) => p.id === item.productId);
+            const name = product ? product.name : "Товар #" + item.productId;
+            return `${name} × ${item.quantity}`;
+          })
           .join(", ");
 
-        // Цвет рамки в зависимости от статуса
         const borderColor = isOverdue
           ? "#dc3545"
           : order.status === "Готовится"
@@ -153,34 +153,34 @@ async function renderKitchenMode(filterStatus) {
               <div style="font-weight:700; color:#F37321;">${order.total} ₽</div>
             </div>
             
-            <div style="color:#555; font-size:14px; margin:4px 0;">
+            <div style="color:#555; font-size:14px; margin:6px 0; line-height:1.5;">
               ${itemsSummary}
             </div>
             
             <div style="color:#888; font-size:13px;">
-              📞 ${order.client_phone} | 👤 ${order.client_name}
-              ${order.order_type === "delivery" ? " | 🛵 Доставка" : " | 🏪 Самовывоз"}
+              ${order.client_phone} | ${order.client_name}
+              ${order.order_type === "delivery" ? " | Доставка" : " | Самовывоз"}
             </div>
             
-            ${order.comment ? `<div style="color:#888; font-size:13px; margin-top:4px;">💬 ${order.comment}</div>` : ""}
+            ${order.comment ? `<div style="color:#888; font-size:13px; margin-top:4px;">Комментарий: ${order.comment}</div>` : ""}
             
             <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
               ${
                 order.status === "Новый" || order.status === "Ожидает подтверждения"
-                  ? `<button class="btn btn--warning" onclick="kitchenStartCooking(${order.id})">👨‍🍳 Взять в работу</button>`
+                  ? `<button class="btn btn--warning" onclick="kitchenStartCooking(${order.id})">Взять в работу</button>`
                   : ""
               }
               ${
                 order.status === "Готовится"
-                  ? `<button class="btn btn--success" onclick="kitchenMarkReady(${order.id})">✅ Приготовлено</button>`
+                  ? `<button class="btn btn--success" onclick="kitchenMarkReady(${order.id})">Готово</button>`
                   : ""
               }
               ${
                 order.status === "Готов к выдаче"
-                  ? `<span style="padding:6px 16px; background:#c8e6c9; border-radius:20px; color:#1e7e34; font-weight:600;">✅ Готов к выдаче</span>`
+                  ? `<span style="padding:8px 16px; background:#c8e6c9; border-radius:20px; color:#1e7e34; font-weight:600;">Готов к выдаче</span>`
                   : ""
               }
-              <button class="btn btn--secondary btn--small" onclick="kitchenViewOrder(${order.id})">👁️</button>
+              <button class="btn btn--secondary btn--small" onclick="kitchenViewOrder(${order.id})">Подробнее</button>
             </div>
           </div>
         `;
@@ -190,12 +190,12 @@ async function renderKitchenMode(filterStatus) {
     html += `</div>`;
     container.innerHTML = html;
   } catch (error) {
-    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
+    container.innerHTML = `<p style="color:#dc3545;">Ошибка: ${error.message}</p>`;
   }
 }
 
 // ============================================================
-//  ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+//  ВСПОМОГАТЕЛЬНЫЕ
 // ============================================================
 
 function getStatusColor(status) {
@@ -220,7 +220,7 @@ function getStatusTextColor(status) {
 
 function checkIfOverdue(order) {
   if (order.status !== "Готовится") return false;
-  const created = new Date(order.created_at);
+  const created = new Date(order.updated_at || order.created_at);
   const now = new Date();
   const diffMinutes = Math.floor((now - created) / 60000);
   return diffMinutes > 20;
@@ -229,15 +229,15 @@ function checkIfOverdue(order) {
 function getTimerInfo(order) {
   if (order.status !== "Готовится") return "";
   
-  const created = new Date(order.created_at);
+  const created = new Date(order.updated_at || order.created_at);
   const now = new Date();
   const diffMinutes = Math.floor((now - created) / 60000);
   
   if (diffMinutes > 20) {
-    return `⏱️ ${diffMinutes} мин (ПРОСРОЧЕНО!)`;
+    return `Просрочено на ${diffMinutes - 20} мин`;
   } else {
     const remaining = 20 - diffMinutes;
-    return `⏱️ ${diffMinutes} мин (осталось ${remaining} мин)`;
+    return `Осталось ${remaining} мин`;
   }
 }
 
@@ -249,25 +249,34 @@ async function kitchenStartCooking(orderId) {
   try {
     const order = await getOrder(orderId);
     if (!order) {
-      alert("❌ Заказ не найден");
+      alert("Заказ не найден");
       return;
     }
 
     if (order.status !== "Новый" && order.status !== "Ожидает подтверждения") {
-      alert("❌ Заказ уже в работе");
+      alert("Заказ уже в работе");
       return;
     }
 
     if (order.status === "Ожидает подтверждения") {
-      if (!confirm("⚠️ Заказ крупный. Взять в работу без подтверждения оператора?")) {
+      if (!confirm("Заказ крупный. Взять в работу без подтверждения оператора?")) {
         return;
       }
     }
 
     await updateOrder(orderId, { status: "Готовится" });
+
+    await createAuditLog({
+      action: "START_COOKING",
+      entity_type: "order",
+      entity_id: orderId,
+      description: `Заказ #${orderId} взят в работу кухней`,
+    });
+
     renderKitchenMode();
+    alert(`Заказ #${orderId} взят в работу`);
   } catch (error) {
-    alert("❌ Ошибка: " + error.message);
+    alert("Ошибка: " + error.message);
   }
 }
 
@@ -275,20 +284,28 @@ async function kitchenMarkReady(orderId) {
   try {
     const order = await getOrder(orderId);
     if (!order) {
-      alert("❌ Заказ не найден");
+      alert("Заказ не найден");
       return;
     }
 
     if (order.status !== "Готовится") {
-      alert("❌ Заказ не в процессе приготовления");
+      alert("Заказ не в процессе приготовления");
       return;
     }
 
     await updateOrder(orderId, { status: "Готов к выдаче" });
+
+    await createAuditLog({
+      action: "MARK_READY",
+      entity_type: "order",
+      entity_id: orderId,
+      description: `Заказ #${orderId} готов к выдаче`,
+    });
+
     renderKitchenMode();
-    alert(`✅ Заказ #${orderId} готов к выдаче`);
+    alert(`Заказ #${orderId} готов к выдаче`);
   } catch (error) {
-    alert("❌ Ошибка: " + error.message);
+    alert("Ошибка: " + error.message);
   }
 }
 
@@ -296,7 +313,7 @@ async function kitchenViewOrder(orderId) {
   try {
     const order = await getOrder(orderId);
     if (!order) {
-      alert("❌ Заказ не найден");
+      alert("Заказ не найден");
       return;
     }
 
@@ -309,7 +326,7 @@ async function kitchenViewOrder(orderId) {
       .join("\n");
 
     alert(
-      `📦 Заказ #${order.id}\n` +
+      `Заказ #${order.id}\n` +
         `Клиент: ${order.client_name}\n` +
         `Телефон: ${order.client_phone}\n` +
         `Тип: ${order.order_type === "delivery" ? "Доставка" : "Самовывоз"}\n` +
@@ -319,7 +336,7 @@ async function kitchenViewOrder(orderId) {
         `Комментарий: ${order.comment || "Нет"}`
     );
   } catch (error) {
-    alert("❌ Ошибка: " + error.message);
+    alert("Ошибка: " + error.message);
   }
 }
 
