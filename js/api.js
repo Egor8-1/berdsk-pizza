@@ -1,6 +1,6 @@
 // ============================================================
 //  BERDSK_PIZZA — SUPABASE API
-//  Полностью переписанный и исправленный модуль
+//  Версия 3.0 — с аудитом, защитой промокодов, курьерами
 // ============================================================
 
 const SUPABASE_URL = "https://nymcnpnoxmpyyztcncvf.supabase.co";
@@ -60,6 +60,12 @@ function serializeJsonb(data) {
   if (result.items && typeof result.items === "object") {
     result.items = JSON.stringify(result.items);
   }
+  if (result.old_data && typeof result.old_data === "object") {
+    result.old_data = JSON.stringify(result.old_data);
+  }
+  if (result.new_data && typeof result.new_data === "object") {
+    result.new_data = JSON.stringify(result.new_data);
+  }
   return result;
 }
 
@@ -72,6 +78,20 @@ function deserializeJsonb(record) {
     } catch (e) {
       console.error("Ошибка парсинга items:", e);
       result.items = [];
+    }
+  }
+  if (result.old_data && typeof result.old_data === "string") {
+    try {
+      result.old_data = JSON.parse(result.old_data);
+    } catch (e) {
+      result.old_data = null;
+    }
+  }
+  if (result.new_data && typeof result.new_data === "string") {
+    try {
+      result.new_data = JSON.parse(result.new_data);
+    } catch (e) {
+      result.new_data = null;
     }
   }
   return result;
@@ -221,6 +241,96 @@ async function getOrdersByStatus(status) {
   return result ? result.map(deserializeJsonb) : [];
 }
 
+// ===== НОВЫЕ ФУНКЦИИ ДЛЯ КУРЬЕРОВ =====
+
+/**
+ * Получить все свободные заказы на доставку (курьер ещё не взял)
+ */
+async function getFreeDeliveryOrders() {
+  const result = await supabaseRequest(
+    `/orders?order_type=eq.delivery&status=eq.${encodeURIComponent("Готов к выдаче")}&courier_id=is.null&select=*&order=created_at.asc`
+  );
+  return result ? result.map(deserializeJsonb) : [];
+}
+
+/**
+ * Получить заказы, взятые конкретным курьером
+ */
+async function getCourierOrders(courierId) {
+  const result = await supabaseRequest(
+    `/orders?courier_id=eq.${courierId}&select=*&order=id.desc`
+  );
+  return result ? result.map(deserializeJsonb) : [];
+}
+
+/**
+ * Взять заказ курьером (аналог "принять заказ" в такси)
+ */
+async function takeOrderByCourier(orderId, courierId) {
+  const order = await getOrder(orderId);
+  if (!order) throw new Error("Заказ не найден");
+  if (order.courier_id) throw new Error("Заказ уже взят другим курьером");
+  if (order.status !== "Готов к выдаче")
+    throw new Error("Заказ не готов к выдаче");
+  if (order.order_type !== "delivery")
+    throw new Error("Этот заказ не на доставку");
+
+  const result = await supabaseRequest(`/orders?id=eq.${orderId}`, "PATCH", {
+    courier_id: courierId,
+    courier_taken_at: new Date().toISOString(),
+    status: "В пути",
+  });
+
+  await createAuditLog({
+    user_id: courierId,
+    action: "TAKE_ORDER",
+    entity_type: "order",
+    entity_id: orderId,
+    description: `Курьер взял заказ #${orderId}`,
+  });
+
+  return result[0] ? deserializeJsonb(result[0]) : result;
+}
+
+/**
+ * Курьер завершил доставку
+ */
+async function completeDeliveryByCourier(orderId, courierId) {
+  const order = await getOrder(orderId);
+  if (!order) throw new Error("Заказ не найден");
+  if (order.courier_id !== courierId)
+    throw new Error("Этот заказ не закреплён за вами");
+  if (order.status !== "В пути") throw new Error("Заказ не в пути");
+
+  const result = await supabaseRequest(`/orders?id=eq.${orderId}`, "PATCH", {
+    status: "Доставлен",
+    courier_delivered_at: new Date().toISOString(),
+  });
+
+  await createAuditLog({
+    user_id: courierId,
+    action: "DELIVER_ORDER",
+    entity_type: "order",
+    entity_id: orderId,
+    description: `Курьер доставил заказ #${orderId}`,
+  });
+
+  return result[0] ? deserializeJsonb(result[0]) : result;
+}
+
+/**
+ * Поиск заказов по номеру
+ */
+async function searchOrdersById(query) {
+  if (!query) return [];
+  const result = await supabaseRequest(
+    `/orders?id=eq.${parseInt(query)}&select=*`
+  );
+  return result ? result.map(deserializeJsonb) : [];
+}
+
+// ===== СТАНДАРТНЫЕ ФУНКЦИИ =====
+
 async function createOrder(data) {
   const orderData = {
     user_id: data.user_id,
@@ -239,6 +349,15 @@ async function createOrder(data) {
 
   const serialized = serializeJsonb(orderData);
   const result = await supabaseRequest("/orders", "POST", serialized);
+
+  await createAuditLog({
+    user_id: data.created_by || data.user_id,
+    action: "CREATE_ORDER",
+    entity_type: "order",
+    entity_id: result[0]?.id,
+    description: `Создан заказ #${result[0]?.id} на ${data.total} ₽`,
+  });
+
   return result[0] ? deserializeJsonb(result[0]) : result;
 }
 
@@ -258,7 +377,7 @@ async function deleteOrder(id) {
 
 async function getOrderHistory(orderId) {
   const result = await supabaseRequest(
-    `/order_history?order_id=eq.${orderId}&select=*&order=changed_at.desc`
+    `/order_history?order_id=eq.${orderId}&select=*&order=created_at.desc`
   );
   return result || [];
 }
@@ -276,7 +395,7 @@ async function createOrderHistory(data) {
 }
 
 // ============================================================
-//  TICKETS
+//  TICKETS (с обратной связью)
 // ============================================================
 
 async function getTickets() {
@@ -314,7 +433,7 @@ async function updateTicket(id, data) {
 }
 
 // ============================================================
-//  PROMOCODES
+//  PROMOCODES (с защитой от абуза)
 // ============================================================
 
 async function getPromocodes() {
@@ -334,7 +453,22 @@ async function getPromocodeByCode(code) {
   return result[0] || null;
 }
 
+async function getPendingPromocodes() {
+  const result = await supabaseRequest(
+    `/promocodes?approval_status=eq.pending&select=*&order=created_at.desc`
+  );
+  return result || [];
+}
+
+/**
+ * Создать промокод с автоматической проверкой суммы
+ * Если сумма >= 1000₽ и создатель не админ — уходит на одобрение
+ */
 async function createPromocode(data) {
+  const creator = getCurrentUser();
+  const isAdmin = creator && creator.role === "admin";
+  const requiresApproval = data.amount >= 1000 && !isAdmin;
+
   const promoData = {
     code: data.code,
     user_id: data.user_id || null,
@@ -342,7 +476,13 @@ async function createPromocode(data) {
     is_used: false,
     expires_at: data.expires_at || null,
     created_by: data.created_by || null,
+    created_by_role: creator?.role || null,
+    requires_admin_approval: requiresApproval,
+    approval_status: requiresApproval ? "pending" : "approved",
+    approved_by: requiresApproval ? null : data.created_by,
+    approved_at: requiresApproval ? null : new Date().toISOString(),
   };
+
   const result = await supabaseRequest("/promocodes", "POST", promoData);
   return result[0] || result;
 }
@@ -356,17 +496,83 @@ async function deletePromocode(id) {
   return supabaseRequest(`/promocodes?id=eq.${id}`, "DELETE");
 }
 
+/**
+ * Одобрить промокод (только админ)
+ */
+async function approvePromocode(id, adminId) {
+  const result = await supabaseRequest(`/promocodes?id=eq.${id}`, "PATCH", {
+    approval_status: "approved",
+    approved_by: adminId,
+    approved_at: new Date().toISOString(),
+  });
+
+  await createAuditLog({
+    user_id: adminId,
+    action: "APPROVE_PROMOCODE",
+    entity_type: "promocode",
+    entity_id: id,
+    description: `Промокод #${id} одобрен`,
+  });
+
+  return result[0] || result;
+}
+
+/**
+ * Отклонить промокод (только админ)
+ */
+async function rejectPromocode(id, adminId, reason) {
+  const result = await supabaseRequest(`/promocodes?id=eq.${id}`, "PATCH", {
+    approval_status: "rejected",
+    approved_by: adminId,
+    approved_at: new Date().toISOString(),
+    rejection_reason: reason,
+  });
+
+  await createAuditLog({
+    user_id: adminId,
+    action: "REJECT_PROMOCODE",
+    entity_type: "promocode",
+    entity_id: id,
+    description: `Промокод #${id} отклонён: ${reason}`,
+  });
+
+  return result[0] || result;
+}
+
+/**
+ * Отменить промокод (только админ)
+ */
+async function cancelPromocode(id, adminId, reason) {
+  const result = await supabaseRequest(`/promocodes?id=eq.${id}`, "PATCH", {
+    is_cancelled: true,
+    cancelled_by: adminId,
+    cancelled_at: new Date().toISOString(),
+    cancel_reason: reason,
+  });
+
+  await createAuditLog({
+    user_id: adminId,
+    action: "CANCEL_PROMOCODE",
+    entity_type: "promocode",
+    entity_id: id,
+    description: `Промокод #${id} отменён: ${reason}`,
+  });
+
+  return result[0] || result;
+}
+
+/**
+ * Использовать промокод при оформлении заказа
+ */
 async function usePromocode(code, orderId) {
   const promocode = await getPromocodeByCode(code);
-  if (!promocode) {
-    throw new Error("Промокод не найден");
-  }
-  if (promocode.is_used) {
-    throw new Error("Промокод уже использован");
-  }
-  if (promocode.expires_at && new Date(promocode.expires_at) < new Date()) {
+  if (!promocode) throw new Error("Промокод не найден");
+  if (promocode.is_used) throw new Error("Промокод уже использован");
+  if (promocode.is_cancelled) throw new Error("Промокод отменён администратором");
+  if (promocode.approval_status !== "approved")
+    throw new Error("Промокод ещё не одобрен");
+  if (promocode.expires_at && new Date(promocode.expires_at) < new Date())
     throw new Error("Промокод истёк");
-  }
 
   await updatePromocode(promocode.id, {
     is_used: true,
@@ -430,9 +636,7 @@ async function getBonusBalance(userId) {
 
 async function spendBonuses(userId, amount, orderId) {
   const balance = await getBonusBalance(userId);
-  if (amount > balance) {
-    throw new Error("Недостаточно бонусов");
-  }
+  if (amount > balance) throw new Error("Недостаточно бонусов");
   return createBonusTransaction({
     user_id: userId,
     order_id: orderId,
@@ -441,6 +645,68 @@ async function spendBonuses(userId, amount, orderId) {
     description: `Списание бонусов за заказ #${orderId}`,
     is_active: true,
   });
+}
+
+// ============================================================
+//  AUDIT LOG (логирование действий персонала)
+// ============================================================
+
+/**
+ * Записать действие в аудит
+ */
+async function createAuditLog(data) {
+  const user = getCurrentUser();
+  const logData = {
+    user_id: data.user_id || user?.id || null,
+    user_name: data.user_name || user?.name || null,
+    user_role: data.user_role || user?.role || null,
+    action: data.action,
+    entity_type: data.entity_type || null,
+    entity_id: data.entity_id || null,
+    old_data: data.old_data || null,
+    new_data: data.new_data || null,
+    description: data.description || null,
+  };
+
+  try {
+    const serialized = serializeJsonb(logData);
+    const result = await supabaseRequest("/audit_log", "POST", serialized);
+    return result[0] || result;
+  } catch (error) {
+    // Аудит не должен ломать основной поток
+    console.error("Ошибка записи в аудит:", error);
+    return null;
+  }
+}
+
+/**
+ * Получить все логи аудита (только админ)
+ */
+async function getAuditLog(filters = {}) {
+  let query = "/audit_log?select=*&order=created_at.desc&limit=500";
+
+  if (filters.user_id) {
+    query += `&user_id=eq.${filters.user_id}`;
+  }
+  if (filters.action) {
+    query += `&action=eq.${filters.action}`;
+  }
+  if (filters.entity_type) {
+    query += `&entity_type=eq.${filters.entity_type}`;
+  }
+
+  const result = await supabaseRequest(query);
+  return result ? result.map(deserializeJsonb) : [];
+}
+
+/**
+ * Получить логи по конкретному объекту
+ */
+async function getAuditLogByEntity(entityType, entityId) {
+  const result = await supabaseRequest(
+    `/audit_log?entity_type=eq.${entityType}&entity_id=eq.${entityId}&select=*&order=created_at.desc`
+  );
+  return result ? result.map(deserializeJsonb) : [];
 }
 
 // ============================================================
@@ -475,6 +741,11 @@ window.getOrders = getOrders;
 window.getOrder = getOrder;
 window.getOrdersByUser = getOrdersByUser;
 window.getOrdersByStatus = getOrdersByStatus;
+window.getFreeDeliveryOrders = getFreeDeliveryOrders;
+window.getCourierOrders = getCourierOrders;
+window.takeOrderByCourier = takeOrderByCourier;
+window.completeDeliveryByCourier = completeDeliveryByCourier;
+window.searchOrdersById = searchOrdersById;
 window.createOrder = createOrder;
 window.updateOrder = updateOrder;
 window.deleteOrder = deleteOrder;
@@ -491,9 +762,13 @@ window.updateTicket = updateTicket;
 window.getPromocodes = getPromocodes;
 window.getPromocode = getPromocode;
 window.getPromocodeByCode = getPromocodeByCode;
+window.getPendingPromocodes = getPendingPromocodes;
 window.createPromocode = createPromocode;
 window.updatePromocode = updatePromocode;
 window.deletePromocode = deletePromocode;
+window.approvePromocode = approvePromocode;
+window.rejectPromocode = rejectPromocode;
+window.cancelPromocode = cancelPromocode;
 window.usePromocode = usePromocode;
 
 window.getBonusTransactions = getBonusTransactions;
@@ -501,4 +776,9 @@ window.getAllBonusTransactions = getAllBonusTransactions;
 window.createBonusTransaction = createBonusTransaction;
 window.updateBonusTransaction = updateBonusTransaction;
 window.getBonusBalance = getBonusBalance;
+window.spendBonuses = spendBonuses;
+
+window.createAuditLog = createAuditLog;
+window.getAuditLog = getAuditLog;
+window.getAuditLogByEntity = getAuditLogByEntity;
 window.spendBonuses = spendBonuses;
