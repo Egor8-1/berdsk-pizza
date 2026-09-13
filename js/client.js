@@ -1,6 +1,6 @@
 // ============================================================
 //  BERDSK_PIZZA — КЛИЕНТ
-//  Полностью переписанный и исправленный модуль
+//  Версия 3.0 — с PDF чеком, поиском, обратной связью
 // ============================================================
 
 let cart = [];
@@ -157,7 +157,7 @@ async function renderCatalog(category = 'Все') {
               <div class="product-card__description">${p.description || ''}</div>
               <div class="product-card__bottom">
                 <span class="product-card__price">${p.price} ₽</span>
-                <button class="product-card__add" onclick="addToCart(${p.id})">+ В корзину</button>
+                <button class="product-card__add" onclick="addToCart(${p.id})">Добавить</button>
               </div>
             </div>
           </div>
@@ -168,7 +168,7 @@ async function renderCatalog(category = 'Все') {
     html += `</div></div>`;
     container.innerHTML = html;
   } catch (error) {
-    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
+    container.innerHTML = `<p style="color:#dc3545;">Ошибка: ${error.message}</p>`;
   }
 }
 
@@ -209,7 +209,7 @@ async function renderCart() {
   if (cartItems.length === 0) {
     container.innerHTML = `
       <div class="cart">
-        <h1 class="cart__title">🛒 Корзина</h1>
+        <h1 class="cart__title">Корзина</h1>
         <div class="cart__empty">
           <span class="cart__empty-icon">🛒</span>
           <h2>Корзина пуста</h2>
@@ -225,7 +225,7 @@ async function renderCart() {
   const discount = activeBonusAmount + (activePromocode?.amount || 0);
   const total = Math.max(0, subtotal - discount);
 
-  let html = `<div class="cart"><h1 class="cart__title">🛒 Корзина</h1>`;
+  let html = `<div class="cart"><h1 class="cart__title">Корзина</h1>`;
 
   cartItems.forEach((item) => {
     html += `
@@ -241,7 +241,7 @@ async function renderCart() {
           <span>${item.price} ₽</span>
         </div>
         <div class="cart__item-total">${item.total} ₽</div>
-        <button class="cart__item-remove" onclick="removeFromCart(${item.productId}); renderCart();">✕</button>
+        <button class="cart__item-remove" onclick="removeFromCart(${item.productId}); renderCart();">×</button>
       </div>
     `;
   });
@@ -269,11 +269,11 @@ async function renderCart() {
         <span>${total} ₽</span>
       </div>
       <div class="cart__summary-actions">
-        <button class="btn btn--primary" onclick="checkout()">📦 Оформить заказ</button>
-        <button class="btn btn--outline" onclick="applyPromocode()">🎁 Промокод</button>
-        <button class="btn btn--outline" onclick="applyBonuses()">💰 Бонусы</button>
-        <button class="btn btn--danger" onclick="clearCart(); renderCart();">🧹 Очистить</button>
-        <button class="btn btn--secondary" onclick="navigateTo('catalog')">← Продолжить покупки</button>
+        <button class="btn btn--primary" onclick="checkout()">Оформить заказ</button>
+        <button class="btn btn--outline" onclick="applyPromocode()">Промокод</button>
+        <button class="btn btn--outline" onclick="applyBonuses()">Бонусы</button>
+        <button class="btn btn--danger" onclick="clearCart(); renderCart();">Очистить</button>
+        <button class="btn btn--secondary" onclick="navigateTo('catalog')">Продолжить покупки</button>
       </div>
     </div>
   </div>`;
@@ -288,7 +288,7 @@ async function renderCart() {
 async function applyPromocode() {
   const user = getCurrentUser();
   if (!user) {
-    alert('⚠️ Для применения промокода необходимо авторизоваться');
+    alert('Для применения промокода необходимо авторизоваться');
     const authModal = document.getElementById('authModal');
     if (authModal) authModal.classList.add('active');
     return;
@@ -300,27 +300,35 @@ async function applyPromocode() {
   try {
     const promocode = await getPromocodeByCode(code.trim().toUpperCase());
     if (!promocode) {
-      alert('❌ Промокод не найден');
+      alert('Промокод не найден');
       return;
     }
     if (promocode.is_used) {
-      alert('❌ Промокод уже использован');
+      alert('Промокод уже использован');
+      return;
+    }
+    if (promocode.is_cancelled) {
+      alert('Промокод отменён администратором');
+      return;
+    }
+    if (promocode.approval_status !== 'approved') {
+      alert('Промокод ещё не одобрен администратором');
       return;
     }
     if (promocode.expires_at && new Date(promocode.expires_at) < new Date()) {
-      alert('❌ Промокод истёк');
+      alert('Промокод истёк');
       return;
     }
     if (promocode.user_id && promocode.user_id !== user.id) {
-      alert('❌ Промокод привязан к другому пользователю');
+      alert('Промокод привязан к другому пользователю');
       return;
     }
 
     activePromocode = promocode;
     renderCart();
-    alert(`✅ Промокод применён: −${promocode.amount} ₽`);
+    alert(`Промокод применён: −${promocode.amount} ₽`);
   } catch (error) {
-    alert('❌ Ошибка: ' + error.message);
+    alert('Ошибка: ' + error.message);
   }
 }
 
@@ -331,7 +339,7 @@ async function applyPromocode() {
 async function applyBonuses() {
   const user = getCurrentUser();
   if (!user) {
-    alert('⚠️ Для использования бонусов необходимо авторизоваться');
+    alert('Для использования бонусов необходимо авторизоваться');
     const authModal = document.getElementById('authModal');
     if (authModal) authModal.classList.add('active');
     return;
@@ -339,7 +347,7 @@ async function applyBonuses() {
 
   const cartItems = await getCartDetails();
   if (cartItems.length === 0) {
-    alert('❌ Корзина пуста');
+    alert('Корзина пуста');
     return;
   }
 
@@ -347,13 +355,13 @@ async function applyBonuses() {
   const maxBonus = Math.floor(subtotal * 0.3);
 
   if (maxBonus <= 0) {
-    alert('❌ Недостаточно товаров для списания бонусов');
+    alert('Недостаточно товаров для списания бонусов');
     return;
   }
 
   const balance = await getBonusBalance(user.id);
   if (balance <= 0) {
-    alert('❌ У вас нет доступных бонусов');
+    alert('У вас нет доступных бонусов');
     return;
   }
 
@@ -365,21 +373,21 @@ async function applyBonuses() {
   const numAmount = parseInt(amount);
 
   if (isNaN(numAmount) || numAmount <= 0) {
-    alert('❌ Введите корректную сумму');
+    alert('Введите корректную сумму');
     return;
   }
   if (numAmount > balance) {
-    alert('❌ Недостаточно бонусов');
+    alert('Недостаточно бонусов');
     return;
   }
   if (numAmount > maxBonus) {
-    alert(`❌ Можно списать не более ${maxBonus} бонусов (30% от заказа)`);
+    alert(`Можно списать не более ${maxBonus} бонусов (30% от заказа)`);
     return;
   }
 
   activeBonusAmount = numAmount;
   renderCart();
-  alert(`✅ Бонусы применены: −${numAmount} ₽`);
+  alert(`Бонусы применены: −${numAmount} ₽`);
 }
 
 // ============================================================
@@ -389,7 +397,7 @@ async function applyBonuses() {
 async function checkout() {
   const user = getCurrentUser();
   if (!user) {
-    alert('⚠️ Для оформления заказа необходимо авторизоваться');
+    alert('Для оформления заказа необходимо авторизоваться');
     const authModal = document.getElementById('authModal');
     if (authModal) authModal.classList.add('active');
     return;
@@ -397,7 +405,7 @@ async function checkout() {
 
   const cartItems = await getCartDetails();
   if (cartItems.length === 0) {
-    alert('❌ Корзина пуста');
+    alert('Корзина пуста');
     return;
   }
 
@@ -411,7 +419,7 @@ async function checkout() {
   const activePoints = points.filter((p) => p.is_active !== false);
 
   if (activePoints.length === 0) {
-    alert('❌ Нет доступных пунктов выдачи');
+    alert('Нет доступных пунктов выдачи');
     return;
   }
 
@@ -428,14 +436,14 @@ async function checkout() {
 
   container.innerHTML = `
     <div class="checkout">
-      <h1>📦 Оформление заказа</h1>
+      <h1>Оформление заказа</h1>
       <div class="checkout__form">
         <div class="checkout__order-summary">
-          <h4 style="margin-bottom:8px;">📋 Состав заказа</h4>
+          <h4 style="margin-bottom:8px;">Состав заказа</h4>
           ${itemsHtml}
           <div class="checkout__total">
             Итого: ${totalAfterDiscounts} ₽
-            ${activeBonusAmount > 0 ? `<span style="font-size:14px; color:#28a745;"> (включая бонусы −${activeBonusAmount} ₽)</span>` : ''}
+            ${activeBonusAmount > 0 ? `<span style="font-size:14px; color:#28a745;"> (бонусы −${activeBonusAmount} ₽)</span>` : ''}
             ${activePromocode ? `<span style="font-size:14px; color:#28a745;"> (промокод −${activePromocode.amount} ₽)</span>` : ''}
           </div>
         </div>
@@ -443,33 +451,33 @@ async function checkout() {
         <div class="form-group">
           <label>Тип заказа</label>
           <select id="orderType" onchange="toggleDeliveryAddress()">
-            <option value="pickup">🏪 Самовывоз</option>
-            <option value="delivery">🛵 Доставка (+150 ₽)</option>
+            <option value="pickup">Самовывоз</option>
+            <option value="delivery">Доставка (+150 ₽)</option>
           </select>
         </div>
 
         <div class="form-group" id="pickupPointGroup">
-          <label>📍 Выберите пункт выдачи</label>
+          <label>Выберите пункт выдачи</label>
           <select id="pickupPoint">${pointsHtml}</select>
         </div>
 
         <div class="form-group" id="deliveryAddressGroup" style="display:none;">
-          <label>🏠 Адрес доставки</label>
+          <label>Адрес доставки</label>
           <input type="text" id="deliveryAddress" placeholder="ул. Ленина, 15, кв. 42" />
         </div>
 
         <div class="form-group">
-          <label>📞 Ваш номер телефона</label>
+          <label>Ваш номер телефона</label>
           <input type="tel" id="clientPhone" placeholder="+7 (999) 123-45-67" required />
         </div>
 
         <div class="form-group">
-          <label>💬 Комментарий</label>
+          <label>Комментарий</label>
           <input type="text" id="orderComment" placeholder="Например: без лука" />
         </div>
 
-        <button class="btn btn--success btn--full" onclick="submitOrder()">✅ Подтвердить заказ</button>
-        <button class="btn btn--secondary btn--full" style="margin-top:8px;" onclick="renderCart()">← Вернуться</button>
+        <button class="btn btn--success btn--full" onclick="submitOrder()">Подтвердить заказ</button>
+        <button class="btn btn--secondary btn--full" style="margin-top:8px;" onclick="renderCart()">Вернуться</button>
       </div>
     </div>
   `;
@@ -492,7 +500,7 @@ function toggleDeliveryAddress() {
 async function submitOrder() {
   const user = getCurrentUser();
   if (!user) {
-    alert('❌ Необходимо авторизоваться');
+    alert('Необходимо авторизоваться');
     return;
   }
 
@@ -501,7 +509,7 @@ async function submitOrder() {
   const comment = document.getElementById('orderComment').value.trim() || '';
 
   if (!clientPhone) {
-    alert('⚠️ Введите номер телефона');
+    alert('Введите номер телефона');
     return;
   }
 
@@ -512,13 +520,13 @@ async function submitOrder() {
   if (orderType === 'pickup') {
     pickupPointId = parseInt(document.getElementById('pickupPoint').value);
     if (!pickupPointId) {
-      alert('⚠️ Выберите пункт выдачи');
+      alert('Выберите пункт выдачи');
       return;
     }
   } else {
     deliveryAddress = document.getElementById('deliveryAddress').value.trim();
     if (!deliveryAddress) {
-      alert('⚠️ Введите адрес доставки');
+      alert('Введите адрес доставки');
       return;
     }
     deliveryCost = 150;
@@ -526,7 +534,7 @@ async function submitOrder() {
 
   const cartItems = await getCartDetails();
   if (cartItems.length === 0) {
-    alert('❌ Корзина пуста');
+    alert('Корзина пуста');
     return;
   }
 
@@ -570,20 +578,20 @@ async function submitOrder() {
 
     clearCart();
     alert(
-      '✅ Заказ оформлен!' +
-        (isLargeOrder ? ' ⚠️ Ожидайте подтверждения оператора.' : '')
+      'Заказ оформлен!' +
+        (isLargeOrder ? ' Ожидайте подтверждения оператора.' : '')
     );
     navigateTo('orders');
   } catch (error) {
-    alert('❌ Ошибка: ' + error.message);
+    alert('Ошибка: ' + error.message);
   }
 }
 
 // ============================================================
-//  ЗАКАЗЫ
+//  ЗАКАЗЫ (С ПОИСКОМ)
 // ============================================================
 
-async function renderOrders() {
+async function renderOrders(searchQuery = '') {
   const container = document.getElementById('content');
   if (!container) return;
 
@@ -591,84 +599,107 @@ async function renderOrders() {
   if (!user) {
     container.innerHTML = `
       <div class="orders">
-        <h1 class="orders__title">📋 Мои заказы</h1>
+        <h1 class="orders__title">Мои заказы</h1>
         <p style="color:#999;">Авторизуйтесь для просмотра заказов</p>
-        <button class="btn btn--primary" onclick="document.getElementById('authModal').classList.add('active')">🔑 Войти</button>
+        <button class="btn btn--primary" onclick="document.getElementById('authModal').classList.add('active')">Войти</button>
       </div>
     `;
     return;
   }
 
   try {
-    const userOrders = await getOrdersByUser(user.id);
+    let userOrders = await getOrdersByUser(user.id);
 
-    if (userOrders.length === 0) {
-      container.innerHTML = `
-        <div class="orders">
-          <h1 class="orders__title">📋 Мои заказы</h1>
-          <p style="color:#999;">У вас пока нет заказов</p>
-          <button class="btn btn--primary" onclick="navigateTo('catalog')">🛍️ Перейти в каталог</button>
-        </div>
-      `;
-      return;
+    // Фильтр по поиску
+    if (searchQuery) {
+      const query = searchQuery.trim();
+      userOrders = userOrders.filter((o) => String(o.id).includes(query));
     }
 
     const products = await getProducts();
     const points = await getPickupPoints();
 
     const statusLabels = {
-      'Новый': '🟡 Новый',
-      'Ожидает подтверждения': '🟠 Ожидает подтверждения',
-      'Готовится': '🟠 Готовится',
-      'Готов к выдаче': '🟢 Готов к выдаче',
-      'В пути': '🔵 В пути',
-      'Доставлен': '✅ Доставлен',
-      'Выдан': '✅ Выдан',
-      'Отменен': '❌ Отменен',
-      'Возврат': '🔄 Возврат',
+      'Новый': 'Новый',
+      'Ожидает подтверждения': 'Ожидает подтверждения',
+      'Готовится': 'Готовится',
+      'Готов к выдаче': 'Готов к выдаче',
+      'В пути': 'В пути',
+      'Доставлен': 'Доставлен',
+      'Выдан': 'Выдан',
+      'Отменен': 'Отменен',
+      'Возврат': 'Возврат',
     };
 
-    let html = `<div class="orders"><h1 class="orders__title">📋 Мои заказы</h1>`;
-
-    userOrders.forEach((order) => {
-      const point = points.find((p) => p.id === order.pickup_point_id);
-      const itemsHtml = order.items
-        .map((item) => {
-          const product = products.find((p) => p.id === item.productId);
-          return `${product ? product.name : 'Товар'} × ${item.quantity}`;
-        })
-        .join('; ');
-
-      const typeLabel =
-        order.order_type === 'delivery'
-          ? `🛵 Доставка: ${order.delivery_address}`
-          : `📍 ${point ? point.name : 'Пункт выдачи'}`;
-
-      const refundLabel = order.is_refunded
-        ? '<span style="color:#28a745; font-weight:600;">💰 Деньги возвращены</span>'
-        : '';
-
-      html += `
-        <div class="order-card" onclick="showOrderTracking(${order.id})">
-          <div class="order-card__header">
-            <span class="order-card__id">Заказ #${order.id}</span>
-            <span class="order-card__status">${statusLabels[order.status] || order.status}</span>
-          </div>
-          <div class="order-card__items">${itemsHtml}</div>
-          <div class="order-card__meta">${typeLabel}</div>
-          ${order.comment ? `<div class="order-card__meta">💬 ${order.comment}</div>` : ''}
-          <div class="order-card__total">${order.total} ₽</div>
-          ${refundLabel}
-          <div class="order-card__meta">📅 ${new Date(order.created_at).toLocaleString('ru-RU')}</div>
+    let html = `
+      <div class="orders">
+        <h1 class="orders__title">Мои заказы</h1>
+        
+        <div style="margin-bottom:20px; display:flex; gap:8px; flex-wrap:wrap;">
+          <input 
+            type="text" 
+            id="orderSearchInput" 
+            placeholder="Поиск по номеру заказа..." 
+            value="${searchQuery}"
+            style="flex:1; max-width:300px; padding:10px 14px; border:1.5px solid #ddd; border-radius:8px; font-size:14px;"
+            onkeypress="if(event.key==='Enter') searchOrders()"
+          />
+          <button class="btn btn--primary" onclick="searchOrders()">Найти</button>
+          ${searchQuery ? `<button class="btn btn--secondary" onclick="renderOrders('')">Сбросить</button>` : ''}
         </div>
-      `;
-    });
+    `;
+
+    if (userOrders.length === 0) {
+      html += `<p style="color:#999;">${searchQuery ? 'Заказы не найдены' : 'У вас пока нет заказов'}</p>`;
+      if (!searchQuery) {
+        html += `<button class="btn btn--primary" onclick="navigateTo('catalog')">Перейти в каталог</button>`;
+      }
+    } else {
+      userOrders.forEach((order) => {
+        const point = points.find((p) => p.id === order.pickup_point_id);
+        const itemsHtml = order.items
+          .map((item) => {
+            const product = products.find((p) => p.id === item.productId);
+            return `${product ? product.name : 'Товар'} × ${item.quantity}`;
+          })
+          .join('; ');
+
+        const typeLabel =
+          order.order_type === 'delivery'
+            ? `Доставка: ${order.delivery_address}`
+            : `${point ? point.name : 'Пункт выдачи'}`;
+
+        const refundLabel = order.is_refunded
+          ? '<span style="color:#28a745; font-weight:600;">Деньги возвращены</span>'
+          : '';
+
+        html += `
+          <div class="order-card" onclick="showOrderTracking(${order.id})">
+            <div class="order-card__header">
+              <span class="order-card__id">Заказ #${order.id}</span>
+              <span class="order-card__status">${statusLabels[order.status] || order.status}</span>
+            </div>
+            <div class="order-card__items">${itemsHtml}</div>
+            <div class="order-card__meta">${typeLabel}</div>
+            ${order.comment ? `<div class="order-card__meta">Комментарий: ${order.comment}</div>` : ''}
+            <div class="order-card__total">${order.total} ₽</div>
+            ${refundLabel}
+            <div class="order-card__meta">${new Date(order.created_at).toLocaleString('ru-RU')}</div>
+          </div>
+        `;
+      });
+    }
 
     html += `</div>`;
     container.innerHTML = html;
   } catch (error) {
-    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
+    container.innerHTML = `<p style="color:#dc3545;">Ошибка: ${error.message}</p>`;
   }
+}
+
+function searchOrders() {
+  const query = document.getElementById('orderSearchInput')?.value || '';
+  renderOrders(query);
 }
 
 // ============================================================
@@ -679,7 +710,7 @@ async function showOrderTracking(orderId) {
   try {
     const order = await getOrder(orderId);
     if (!order) {
-      alert('❌ Заказ не найден');
+      alert('Заказ не найден');
       return;
     }
 
@@ -700,37 +731,37 @@ async function showOrderTracking(orderId) {
       .join('');
 
     const statusLabels = {
-      'Новый': '🟡 Новый',
-      'Ожидает подтверждения': '🟠 Ожидает подтверждения',
-      'Готовится': '🟠 Готовится',
-      'Готов к выдаче': '🟢 Готов к выдаче',
-      'В пути': '🔵 В пути',
-      'Доставлен': '✅ Доставлен',
-      'Выдан': '✅ Выдан',
-      'Отменен': '❌ Отменен',
-      'Возврат': '🔄 Возврат',
+      'Новый': 'Новый',
+      'Ожидает подтверждения': 'Ожидает подтверждения',
+      'Готовится': 'Готовится',
+      'Готов к выдаче': 'Готов к выдаче',
+      'В пути': 'В пути',
+      'Доставлен': 'Доставлен',
+      'Выдан': 'Выдан',
+      'Отменен': 'Отменен',
+      'Возврат': 'Возврат',
     };
 
     const typeInfo =
       order.order_type === 'delivery'
-        ? `🛵 Доставка: ${order.delivery_address}`
-        : `📍 ${point ? point.name : 'Пункт выдачи'} — ${point ? point.address : ''}`;
+        ? `Доставка: ${order.delivery_address}`
+        : `${point ? point.name : 'Пункт выдачи'} — ${point ? point.address : ''}`;
 
     const refundInfo = order.is_refunded
-      ? '<div style="padding:12px 16px; background:#d4edda; border-radius:8px; color:#155724; font-weight:600; margin-bottom:16px;">💰 Деньги возвращены</div>'
+      ? '<div style="padding:12px 16px; background:#d4edda; border-radius:8px; color:#155724; font-weight:600; margin-bottom:16px;">Деньги возвращены</div>'
       : '';
 
     const container = document.getElementById('content');
     container.innerHTML = `
       <div class="tracking">
-        <h1>📦 Заказ #${order.id}</h1>
+        <h1>Заказ #${order.id}</h1>
         <p style="color:#888; margin-bottom:16px;">Отслеживание статуса</p>
         ${refundInfo}
         <div style="padding:12px 16px; background:#f8f9fa; border-radius:8px; max-width:500px; margin-bottom:16px;">
           <strong>Текущий статус:</strong> ${statusLabels[order.status] || order.status}
         </div>
         <div class="tracking__order-details">
-          <h3 style="margin-bottom:8px;">📋 Детали заказа</h3>
+          <h3 style="margin-bottom:8px;">Детали заказа</h3>
           ${itemsHtml}
           <div style="border-top:2px solid #eee; padding-top:8px; margin-top:8px; font-weight:700; font-size:16px;">
             <div class="detail-row">
@@ -741,20 +772,275 @@ async function showOrderTracking(orderId) {
           <div class="detail-row" style="margin-top:8px; font-size:13px; color:#888;">
             <span>${typeInfo}</span>
           </div>
-          ${order.comment ? `<div class="detail-row" style="font-size:13px; color:#888;"><span>💬 ${order.comment}</span></div>` : ''}
+          ${order.comment ? `<div class="detail-row" style="font-size:13px; color:#888;"><span>Комментарий: ${order.comment}</span></div>` : ''}
           <div class="detail-row" style="font-size:12px; color:#999; margin-top:8px;">
-            📅 ${new Date(order.created_at).toLocaleString('ru-RU')}
+            ${new Date(order.created_at).toLocaleString('ru-RU')}
           </div>
         </div>
         <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-          <button class="btn btn--secondary" onclick="navigateTo('orders')">← Вернуться</button>
-          <button class="btn btn--primary" onclick="window.print()">🖨️ Распечатать</button>
-          <button class="btn btn--outline" onclick="createSupportTicket(${order.id})">📩 Написать обращение</button>
+          <button class="btn btn--secondary" onclick="navigateTo('orders')">Вернуться</button>
+          <button class="btn btn--primary" onclick="downloadOrderPDF(${order.id})">Скачать чек PDF</button>
+          <button class="btn btn--outline" onclick="createSupportTicket(${order.id})">Написать обращение</button>
         </div>
       </div>
     `;
   } catch (error) {
-    alert('❌ Ошибка загрузки заказа: ' + error.message);
+    alert('Ошибка загрузки заказа: ' + error.message);
+  }
+}
+
+// ============================================================
+//  PDF ЧЕК
+// ============================================================
+
+async function downloadOrderPDF(orderId) {
+  try {
+    const order = await getOrder(orderId);
+    if (!order) {
+      alert('Заказ не найден');
+      return;
+    }
+
+    const products = await getProducts();
+    const points = await getPickupPoints();
+    const point = points.find((p) => p.id === order.pickup_point_id);
+    const user = getCurrentUser();
+
+    const statusLabels = {
+      'Новый': 'Новый',
+      'Ожидает подтверждения': 'Ожидает подтверждения',
+      'Готовится': 'Готовится',
+      'Готов к выдаче': 'Готов к выдаче',
+      'В пути': 'В пути',
+      'Доставлен': 'Доставлен',
+      'Выдан': 'Выдан',
+      'Отменен': 'Отменен',
+      'Возврат': 'Возврат',
+    };
+
+    // Формируем строки товаров
+    let itemsRows = '';
+    let subtotal = 0;
+    for (const item of order.items) {
+      const product = products.find((p) => p.id === item.productId);
+      const name = product ? product.name : 'Товар';
+      const total = item.price * item.quantity;
+      subtotal += total;
+      itemsRows += `
+        <tr>
+          <td style="padding:8px; border-bottom:1px solid #eee;">${name}</td>
+          <td style="padding:8px; border-bottom:1px solid #eee; text-align:center;">${item.quantity}</td>
+          <td style="padding:8px; border-bottom:1px solid #eee; text-align:right;">${item.price} ₽</td>
+          <td style="padding:8px; border-bottom:1px solid #eee; text-align:right;">${total} ₽</td>
+        </tr>
+      `;
+    }
+
+    // Строки с доставкой/скидкой
+    let extraRows = '';
+    if (order.delivery_cost > 0) {
+      extraRows += `
+        <tr>
+          <td colspan="3" style="padding:8px; text-align:right;">Доставка:</td>
+          <td style="padding:8px; text-align:right;">${order.delivery_cost} ₽</td>
+        </tr>
+      `;
+    }
+
+    const orderTypeText =
+      order.order_type === 'delivery'
+        ? `Доставка: ${order.delivery_address}`
+        : `Самовывоз: ${point ? point.name + ', ' + point.address : 'Пункт выдачи'}`;
+
+    // Создаём HTML для PDF
+    const pdfHtml = `
+      <!DOCTYPE html>
+      <html lang="ru">
+      <head>
+        <meta charset="UTF-8">
+        <title>Чек заказа #${order.id} — Бердск_pizza</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Roboto', Arial, sans-serif;
+            padding: 40px;
+            color: #1a1a1a;
+            max-width: 800px;
+            margin: 0 auto;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #f37321;
+          }
+          .logo {
+            font-size: 32px;
+            font-weight: 900;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+          }
+          .logo span { color: #f37321; }
+          .subtitle {
+            font-size: 14px;
+            color: #888;
+          }
+          .receipt-title {
+            font-size: 22px;
+            font-weight: 700;
+            margin: 20px 0;
+            text-align: center;
+          }
+          .order-info {
+            background: #f8f9fa;
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.8;
+          }
+          .order-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+          }
+          .order-info-row strong {
+            color: #555;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+          }
+          th {
+            background: #f5f5f5;
+            padding: 10px 8px;
+            text-align: left;
+            font-size: 13px;
+            font-weight: 700;
+            color: #555;
+            text-transform: uppercase;
+            border-bottom: 2px solid #ddd;
+          }
+          th:first-child { text-align: left; }
+          th:nth-child(2) { text-align: center; }
+          th:nth-child(3), th:nth-child(4) { text-align: right; }
+          .total-block {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 2px solid #ddd;
+          }
+          .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 15px;
+          }
+          .total-row.grand-total {
+            font-size: 22px;
+            font-weight: 700;
+            color: #f37321;
+            padding-top: 12px;
+            border-top: 2px solid #f37321;
+            margin-top: 8px;
+          }
+          .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+          }
+          .status-badge {
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            background: #f37321;
+            color: #fff;
+          }
+          @media print {
+            body { padding: 20px; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo">🍕 <span>БЕРДСК</span>_PIZZA</div>
+          <div class="subtitle">Доставка пиццы в Бердске</div>
+        </div>
+
+        <div class="receipt-title">Чек заказа #${order.id}</div>
+
+        <div class="order-info">
+          <div class="order-info-row"><strong>Дата:</strong> <span>${new Date(order.created_at).toLocaleString('ru-RU')}</span></div>
+          <div class="order-info-row"><strong>Клиент:</strong> <span>${order.client_name}</span></div>
+          <div class="order-info-row"><strong>Телефон:</strong> <span>${order.client_phone}</span></div>
+          <div class="order-info-row"><strong>Тип заказа:</strong> <span>${orderTypeText}</span></div>
+          <div class="order-info-row"><strong>Статус:</strong> <span class="status-badge">${statusLabels[order.status] || order.status}</span></div>
+          ${order.comment ? `<div class="order-info-row"><strong>Комментарий:</strong> <span>${order.comment}</span></div>` : ''}
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Товар</th>
+              <th>Кол-во</th>
+              <th>Цена</th>
+              <th>Сумма</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsRows}
+          </tbody>
+        </table>
+
+        <div class="total-block">
+          <div class="total-row">
+            <span>Подытог:</span>
+            <span>${subtotal} ₽</span>
+          </div>
+          ${order.delivery_cost > 0 ? `
+            <div class="total-row">
+              <span>Доставка:</span>
+              <span>${order.delivery_cost} ₽</span>
+            </div>
+          ` : ''}
+          ${order.is_refunded ? `
+            <div class="total-row" style="color:#28a745;">
+              <span>Возврат:</span>
+              <span>${order.refund_amount} ₽</span>
+            </div>
+          ` : ''}
+          <div class="total-row grand-total">
+            <span>Итого:</span>
+            <span>${order.total} ₽</span>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p>Спасибо за заказ! 🍕</p>
+          <p>© ${new Date().getFullYear()} Бердск_pizza. Все права защищены.</p>
+        </div>
+
+        <div class="no-print" style="text-align:center; margin-top:30px;">
+          <button onclick="window.print()" style="padding:12px 32px; background:#f37321; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:16px; font-weight:600;">
+            Сохранить как PDF
+          </button>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Открываем окно для печати/сохранения
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    printWindow.document.write(pdfHtml);
+    printWindow.document.close();
+  } catch (error) {
+    alert('Ошибка генерации PDF: ' + error.message);
   }
 }
 
@@ -770,9 +1056,9 @@ async function renderBonuses() {
   if (!user) {
     container.innerHTML = `
       <div class="bonuses">
-        <h1>🎁 Мои бонусы</h1>
+        <h1>Мои бонусы</h1>
         <p style="color:#999;">Авторизуйтесь для просмотра бонусов</p>
-        <button class="btn btn--primary" onclick="document.getElementById('authModal').classList.add('active')">🔑 Войти</button>
+        <button class="btn btn--primary" onclick="document.getElementById('authModal').classList.add('active')">Войти</button>
       </div>
     `;
     return;
@@ -805,7 +1091,7 @@ async function renderBonuses() {
 
     container.innerHTML = `
       <div class="bonuses">
-        <h1>🎁 Мои бонусы</h1>
+        <h1>Мои бонусы</h1>
         <div class="bonuses__balance">
           <div class="label">Текущий баланс</div>
           <div class="amount">${balance}</div>
@@ -815,16 +1101,16 @@ async function renderBonuses() {
           <h3 style="margin-bottom:12px;">История операций</h3>
           ${historyHtml || '<p style="color:#999;">История пуста</p>'}
         </div>
-        <button class="btn btn--secondary" onclick="navigateTo('catalog')" style="margin-top:16px;">← Вернуться</button>
+        <button class="btn btn--secondary" onclick="navigateTo('catalog')" style="margin-top:16px;">Вернуться</button>
       </div>
     `;
   } catch (error) {
-    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
+    container.innerHTML = `<p style="color:#dc3545;">Ошибка: ${error.message}</p>`;
   }
 }
 
 // ============================================================
-//  ОБРАЩЕНИЯ (ТИКЕТЫ)
+//  ОБРАЩЕНИЯ (ТИКЕТЫ С ОБРАТНОЙ СВЯЗЬЮ)
 // ============================================================
 
 async function renderSupport() {
@@ -835,9 +1121,9 @@ async function renderSupport() {
   if (!user) {
     container.innerHTML = `
       <div class="bonuses">
-        <h1>📩 Обращения</h1>
+        <h1>Обращения</h1>
         <p style="color:#999;">Авторизуйтесь для просмотра обращений</p>
-        <button class="btn btn--primary" onclick="document.getElementById('authModal').classList.add('active')">🔑 Войти</button>
+        <button class="btn btn--primary" onclick="document.getElementById('authModal').classList.add('active')">Войти</button>
       </div>
     `;
     return;
@@ -847,30 +1133,65 @@ async function renderSupport() {
     const tickets = await getTicketsByUser(user.id);
 
     const statusLabels = {
-      'Новое': '🟡 Новое',
-      'В работе': '🟠 В работе',
-      'Решено': '✅ Решено',
-      'Возврат': '🔄 Возврат',
+      'Новое': 'Новое',
+      'В работе': 'В работе',
+      'Ожидает клиента': 'Ожидает вашего ответа',
+      'Решено': 'Решено',
+      'Отклонено': 'Отклонено',
+    };
+
+    const statusColors = {
+      'Новое': '#fff3cd',
+      'В работе': '#ffe0b2',
+      'Ожидает клиента': '#bbdefb',
+      'Решено': '#c8e6c9',
+      'Отклонено': '#ffcdd2',
+    };
+
+    const resolutionLabels = {
+      'promocode': 'Выдан промокод',
+      'refund': 'Возврат средств',
+      'partial_refund': 'Частичный возврат',
+      'rejection': 'Отказ в компенсации',
+      'none': 'Без компенсации',
     };
 
     let html = `
       <div class="bonuses">
-        <h1>📩 Мои обращения</h1>
-        <button class="btn btn--primary" onclick="showCreateTicketForm()" style="margin-bottom:20px;">➕ Новое обращение</button>
+        <h1>Мои обращения</h1>
+        <button class="btn btn--primary" onclick="showCreateTicketForm()" style="margin-bottom:20px;">Создать обращение</button>
     `;
 
     if (tickets.length === 0) {
       html += `<p style="color:#999;">У вас нет обращений</p>`;
     } else {
       tickets.forEach((t) => {
+        const statusColor = statusColors[t.status] || '#eee';
+
         html += `
-          <div style="background:#fff; padding:16px 20px; border-radius:12px; margin-bottom:12px; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-              <strong>${t.subject}</strong>
-              <span>${statusLabels[t.status] || t.status}</span>
+          <div style="background:#fff; padding:20px; border-radius:12px; margin-bottom:12px; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+              <strong style="font-size:16px;">${t.subject}</strong>
+              <span style="padding:2px 12px; border-radius:20px; font-size:13px; background:${statusColor};">${statusLabels[t.status] || t.status}</span>
             </div>
-            <div style="font-size:14px; color:#555; margin-top:4px;">${t.description}</div>
-            <div style="font-size:12px; color:#999; margin-top:4px;">📅 ${new Date(t.created_at).toLocaleString('ru-RU')}</div>
+            <div style="font-size:14px; color:#555; margin-bottom:8px;">${t.description}</div>
+            
+            ${t.resolution ? `
+              <div style="background:#f8f9fa; padding:12px; border-radius:8px; margin-top:12px; font-size:14px;">
+                <strong>Решение оператора:</strong> ${t.resolution}
+                ${t.compensation_amount > 0 ? `<div style="color:#28a745; margin-top:4px;">Компенсация: ${t.compensation_amount} ₽</div>` : ''}
+              </div>
+            ` : ''}
+            
+            ${t.promocode_id ? `
+              <div style="margin-top:8px;">
+                <button class="btn btn--outline btn--small" onclick="viewMyPromocode(${t.promocode_id})">Посмотреть промокод</button>
+              </div>
+            ` : ''}
+            
+            <div style="font-size:12px; color:#999; margin-top:8px;">
+              ${new Date(t.created_at).toLocaleString('ru-RU')}
+            </div>
           </div>
         `;
       });
@@ -879,7 +1200,26 @@ async function renderSupport() {
     html += `</div>`;
     container.innerHTML = html;
   } catch (error) {
-    container.innerHTML = `<p style="color:#dc3545;">❌ Ошибка: ${error.message}</p>`;
+    container.innerHTML = `<p style="color:#dc3545;">Ошибка: ${error.message}</p>`;
+  }
+}
+
+async function viewMyPromocode(promocodeId) {
+  try {
+    const promo = await getPromocode(promocodeId);
+    if (!promo) {
+      alert('Промокод не найден');
+      return;
+    }
+    alert(
+      `Ваш промокод: ${promo.code}\n` +
+      `Сумма: ${promo.amount} ₽\n` +
+      `Действует до: ${promo.expires_at ? new Date(promo.expires_at).toLocaleDateString('ru-RU') : 'бессрочно'}\n` +
+      `Использован: ${promo.is_used ? 'Да' : 'Нет'}\n\n` +
+      `Скопируйте код и введите его в корзине при оформлении заказа.`
+    );
+  } catch (error) {
+    alert('Ошибка: ' + error.message);
   }
 }
 
@@ -895,7 +1235,7 @@ function showCreateTicketForm(orderId = null) {
 
   container.innerHTML = `
     <div class="bonuses">
-      <h1>📩 Новое обращение</h1>
+      <h1>Новое обращение</h1>
       <div style="background:#fff; padding:24px; border-radius:16px; max-width:500px; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
         ${orderSelect}
         <div class="form-group">
@@ -906,8 +1246,8 @@ function showCreateTicketForm(orderId = null) {
           <label>Описание</label>
           <textarea id="ticketDescription" rows="4" placeholder="Опишите вашу проблему"></textarea>
         </div>
-        <button class="btn btn--primary btn--full" onclick="submitTicket()">📩 Отправить</button>
-        <button class="btn btn--secondary btn--full" style="margin-top:8px;" onclick="renderSupport()">← Назад</button>
+        <button class="btn btn--primary btn--full" onclick="submitTicket()">Отправить</button>
+        <button class="btn btn--secondary btn--full" style="margin-top:8px;" onclick="renderSupport()">Назад</button>
       </div>
     </div>
   `;
@@ -920,7 +1260,7 @@ async function createSupportTicket(orderId) {
 async function submitTicket() {
   const user = getCurrentUser();
   if (!user) {
-    alert('❌ Необходимо авторизоваться');
+    alert('Необходимо авторизоваться');
     return;
   }
 
@@ -929,7 +1269,7 @@ async function submitTicket() {
   const description = document.getElementById('ticketDescription').value.trim();
 
   if (!subject || !description) {
-    alert('⚠️ Заполните тему и описание');
+    alert('Заполните тему и описание');
     return;
   }
 
@@ -941,10 +1281,10 @@ async function submitTicket() {
       description: description,
       status: 'Новое',
     });
-    alert('✅ Обращение отправлено');
+    alert('Обращение отправлено. Ожидайте ответа оператора.');
     renderSupport();
   } catch (error) {
-    alert('❌ Ошибка: ' + error.message);
+    alert('Ошибка: ' + error.message);
   }
 }
 
@@ -967,11 +1307,11 @@ document.addEventListener('DOMContentLoaded', function () {
   if (authBtn) {
     const user = getCurrentUser();
     if (user) {
-      authBtn.textContent = '🚪 Выйти';
+      authBtn.textContent = 'Выйти';
       authBtn.className = 'btn btn--secondary';
       authBtn.onclick = logout;
     } else {
-      authBtn.textContent = '🔑 Войти';
+      authBtn.textContent = 'Войти';
       authBtn.className = 'btn btn--primary';
       authBtn.onclick = function () {
         document.getElementById('authModal').classList.add('active');
@@ -981,7 +1321,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   renderCatalog();
   initAuthUI();
-  console.log('🍕 Бердск_pizza загружена');
+  console.log('Бердск_pizza загружена');
 });
 
 // ============================================================
@@ -1006,3 +1346,6 @@ window.applyBonuses = applyBonuses;
 window.showOrderTracking = showOrderTracking;
 window.createSupportTicket = createSupportTicket;
 window.submitTicket = submitTicket;
+window.searchOrders = searchOrders;
+window.downloadOrderPDF = downloadOrderPDF;
+window.viewMyPromocode = viewMyPromocode;
