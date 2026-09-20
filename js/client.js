@@ -658,6 +658,7 @@ async function renderOrders(searchQuery = '') {
       userOrders.forEach((order) => {
         const point = points.find((p) => p.id === order.pickup_point_id);
         console.log(point.name);
+        console.log(fakePoint.name);
         const itemsHtml = order.items
           .map((item) => {
             const product = products.find((p) => p.id === item.productId);
