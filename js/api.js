@@ -410,7 +410,7 @@ async function getTicket(id) {
 
 async function getTicketsByUser(userId) {
   const result = await supabaseRequest(
-    `/ticket?client_id=eq.${userId}&select=*&order=id.desc`
+    `/tickets?client_id=eq.${userId}&select=*&order=id.desc`
   );
   return result || [];
 }
