@@ -399,7 +399,7 @@ async function createOrderHistory(data) {
 // ============================================================
 
 async function getTickets() {
-  const result = await supabaseRequest("/tickets?select=*&order=id.desc");
+  const result = await supabaseRequest("/ticket?select=*&order=id.desc");
   return result || [];
 }
 
