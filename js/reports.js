@@ -235,7 +235,7 @@ async function showFinancialReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('financial', decodeURIComponent('${encodeURIComponent(JSON.stringify(tableRows))}'))">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF()">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -280,7 +280,7 @@ async function showStatusReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('statuses', decodeURIComponent('${encodeURIComponent(JSON.stringify(statusData))}'))">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF()">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -315,7 +315,7 @@ async function showPointsReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('points', decodeURIComponent('${encodeURIComponent(JSON.stringify(pointData))}'))">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF()">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -366,7 +366,7 @@ async function showProductsReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('products', decodeURIComponent('${encodeURIComponent(JSON.stringify(sortedProducts))}'))">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF()">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -430,7 +430,7 @@ async function showPeriodsReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('periods', decodeURIComponent('${encodeURIComponent(JSON.stringify(dayRows))}'))">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF()">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -468,7 +468,7 @@ async function showBonusesReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('bonuses', decodeURIComponent('${encodeURIComponent(JSON.stringify(tableRows))}'))">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF()">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -514,7 +514,7 @@ async function showReturnsReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('returns', decodeURIComponent('${encodeURIComponent(JSON.stringify(tableRows))}'))">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF()">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -554,7 +554,7 @@ async function showDeliveryReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('delivery', decodeURIComponent('${encodeURIComponent(JSON.stringify(tableRows))}'))">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF()">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -592,7 +592,7 @@ async function showCouriersReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('couriers', decodeURIComponent('${encodeURIComponent(JSON.stringify(courierData))}'))">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF()">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -603,7 +603,14 @@ async function showCouriersReport(container, from, to) {
 //  ВСПОМОГАТЕЛЬНЫЕ
 // ============================================================
 
+// Заголовки последней отрисованной таблицы (нужны для пустых отчётов)
+let lastReportHeaders = [];
+
 function generateTable(headers, rows) {
+  // Запоминаем заголовки, чтобы отчёт с пустым результатом
+  // всё равно печатался с правильными колонками
+  lastReportHeaders = Array.isArray(headers) ? headers.slice() : [];
+
   if (!rows || rows.length === 0) {
     return '<p style="color:#999;">Нет данных</p>';
   }
@@ -633,180 +640,152 @@ function getWeekNumber(date) {
 // ============================================================
 //  PDF ГЕНЕРАЦИЯ
 // ============================================================
+//  PDF ГЕНЕРАЦИЯ (печать без всплывающих окон)
+// ============================================================
 
-function generateReportPDF(reportType, rows) {
-  const titles = {
-    financial: "Финансовый отчёт",
-    statuses: "Отчёт по статусам",
-    points: "Отчёт по пунктам выдачи",
-    products: "Топ-10 товаров",
-    periods: "Отчёт по периодам",
-    bonuses: "Отчёт по бонусам",
-    returns: "Отчёт по возвратам",
-    delivery: "Доставка и самовывоз",
-    couriers: "Отчёт по курьерам",
-  };
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
-  const headersMap = {
-    financial: ["Дата", "Заказов", "Выручка"],
-    statuses: ["Статус", "Количество", "Сумма", "% от всех"],
-    points: ["Пункт", "Адрес", "Заказов", "Выручка"],
-    products: ["#", "Товар", "Продано (шт)", "Выручка"],
-    periods: ["Период", "Заказов", "Выручка"],
-    bonuses: ["Операция", "Сумма", "Количество"],
-    returns: ["ID", "Клиент", "Сумма", "Причина", "Дата"],
-    delivery: ["Тип", "Заказов", "Выручка", "% от всех"],
-    couriers: ["Курьер", "Телефон", "Доставлено", "В пути", "Выручка"],
-  };
-
-  const title = titles[reportType] || "Отчёт";
-  const headers = headersMap[reportType] || [];
-  const period = getDateRangeText();
+function buildReportHtml(title, period, headers, rows) {
   const now = new Date().toLocaleString("ru-RU");
 
-  // Защита от спецсимволов в данных
-  let parsedRows = rows;
-  if (typeof rows === 'string') {
-    try {
-      parsedRows = JSON.parse(rows);
-    } catch (e) {
-      parsedRows = [];
-    }
-  }
-  const safeRows = Array.isArray(parsedRows) ? parsedRows : [];
-  const safeHeaders = Array.isArray(headers) ? headers : [];
+  const tableHtml =
+    rows.length > 0
+      ? `<table>
+          <thead>
+            <tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr>
+          </thead>
+          <tbody>
+            ${rows
+              .map(
+                (row) =>
+                  `<tr>${row
+                    .map((cell) => `<td>${escapeHtml(cell)}</td>`)
+                    .join("")}</tr>`
+              )
+              .join("")}
+          </tbody>
+        </table>`
+      : '<p class="empty">Нет данных за выбранный период</p>';
 
-  const printWindow = window.open("", "_blank", "width=900,height=700");
-  if (!printWindow) {
-    alert("Не удалось открыть окно. Разрешите всплывающие окна для этого сайта.");
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>${escapeHtml(title)} — Бердск_pizza</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; padding: 24px; color: #1a1a1a; }
+    .header { text-align: center; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 3px solid #f37321; }
+    .logo { font-size: 22px; font-weight: 900; }
+    .logo span { color: #f37321; }
+    .report-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .meta { font-size: 12px; color: #666; margin-bottom: 16px; }
+    .meta div { padding: 1px 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+    th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #e5e5e5; }
+    th { background: #f5f5f5; font-weight: 700; text-transform: uppercase; font-size: 11px; color: #555; }
+    tr { break-inside: avoid; }
+    thead { display: table-header-group; }
+    .empty { text-align: center; color: #999; margin-top: 30px; }
+    .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #eee; text-align: center; font-size: 11px; color: #999; }
+    @page { margin: 12mm; }
+  </style>
+</head>
+<body>
+  <div class="header"><div class="logo"><span>БЕРДСК</span>_PIZZA</div></div>
+  <div class="report-title">${escapeHtml(title)}</div>
+  <div class="meta">
+    <div><strong>Период:</strong> ${escapeHtml(period)}</div>
+    <div><strong>Сформирован:</strong> ${now}</div>
+  </div>
+  ${tableHtml}
+  <div class="footer">© ${new Date().getFullYear()} Бердск_pizza. Отчёт сформирован автоматически.</div>
+</body>
+</html>`;
+}
+
+// Печать в скрытом iframe: не блокируется блокировщиками всплывающих окон,
+// не требует второго клика и работает при открытии файла по file://
+function printHtml(html) {
+  const previous = document.getElementById("reportPrintFrame");
+  if (previous) previous.remove();
+
+  const iframe = document.createElement("iframe");
+  iframe.id = "reportPrintFrame";
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText =
+    "position:fixed;left:0;top:0;width:0;height:0;border:0;visibility:hidden;";
+  document.body.appendChild(iframe);
+
+  let printed = false;
+  const doPrint = () => {
+    if (printed) return;
+    printed = true;
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch (error) {
+      console.error("Не удалось открыть диалог печати:", error);
+      alert("Не удалось открыть диалог печати. Нажмите Ctrl+P.");
+    }
+    setTimeout(() => iframe.remove(), 2000);
+  };
+
+  const frameDoc = iframe.contentWindow.document;
+  frameDoc.open();
+  frameDoc.write(html);
+  frameDoc.close();
+
+  if (frameDoc.readyState === "complete") {
+    setTimeout(doPrint, 250);
+  } else {
+    iframe.addEventListener("load", () => setTimeout(doPrint, 250));
+  }
+  setTimeout(doPrint, 1500);
+}
+
+// Данные берём из уже отрисованной таблицы: печатается ровно то, что видит админ
+function generateReportPDF() {
+  const root = document.getElementById("adminContent");
+  if (!root) {
+    alert("Отчёт не найден.");
     return;
   }
 
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html lang="ru">
-    <head>
-      <meta charset="UTF-8">
-      <title>${title} — Бердск_pizza</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-          font-family: Arial, sans-serif;
-          padding: 40px;
-          color: #1a1a1a;
-        }
-        .header {
-          text-align: center;
-          margin-bottom: 30px;
-          padding-bottom: 20px;
-          border-bottom: 3px solid #f37321;
-        }
-        .logo {
-          font-size: 28px;
-          font-weight: 900;
-          margin-bottom: 8px;
-        }
-        .logo span { color: #f37321; }
-        .report-title {
-          font-size: 22px;
-          font-weight: 700;
-          margin: 20px 0 8px;
-        }
-        .meta {
-          font-size: 13px;
-          color: #666;
-          margin-bottom: 24px;
-        }
-        .meta div { padding: 2px 0; }
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-top: 16px;
-        }
-        th, td {
-          padding: 10px 12px;
-          text-align: left;
-          border-bottom: 1px solid #eee;
-          font-size: 14px;
-        }
-        th {
-          background: #f5f5f5;
-          font-weight: 700;
-          text-transform: uppercase;
-          font-size: 12px;
-          letter-spacing: 0.5px;
-          color: #555;
-        }
-        .footer {
-          margin-top: 40px;
-          padding-top: 20px;
-          border-top: 1px solid #eee;
-          text-align: center;
-          font-size: 12px;
-          color: #999;
-        }
-        .no-print {
-          text-align: center;
-          margin-top: 30px;
-        }
-        .no-print button {
-          padding: 12px 32px;
-          background: #f37321;
-          color: #fff;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 16px;
-          font-weight: 600;
-        }
-        @media print {
-          body { padding: 20px; }
-          .no-print { display: none; }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <div class="logo"><span>БЕРДСК</span>_PIZZA</div>
-      </div>
+  // Таблицы может не быть — тогда отчёт всё равно печатается с пометкой «нет данных»
+  const sourceTable = root.querySelector("table");
 
-      <div class="report-title">${title}</div>
-      <div class="meta">
-        <div><strong>Период:</strong> ${period}</div>
-        <div><strong>Сформирован:</strong> ${now}</div>
-      </div>
+  const titleEl = root.querySelector("h1");
+  const periodEl = Array.from(root.querySelectorAll("p")).find((p) =>
+    p.textContent.includes("Период:")
+  );
 
-      ${
-        safeRows.length > 0
-          ? `
-        <table>
-          <thead>
-            <tr>${safeHeaders.map((h) => `<th>${h}</th>`).join("")}</tr>
-          </thead>
-          <tbody>
-            ${safeRows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}
-          </tbody>
-        </table>
-      `
-          : '<p style="text-align:center; color:#999; margin-top:40px;">Нет данных за выбранный период</p>'
-      }
+  const title = titleEl ? titleEl.textContent.trim() : "Отчёт";
+  const period = periodEl
+    ? periodEl.textContent.replace("Период:", "").trim()
+    : "за всё время";
 
-      <div class="footer">
-        <p>© ${new Date().getFullYear()} Бердск_pizza. Отчёт сформирован автоматически.</p>
-      </div>
+  const headers = sourceTable
+    ? Array.from(sourceTable.querySelectorAll("thead th")).map((th) =>
+        th.textContent.trim()
+      )
+    : lastReportHeaders;
+  const rows = sourceTable
+    ? Array.from(sourceTable.querySelectorAll("tbody tr")).map((tr) =>
+        Array.from(tr.querySelectorAll("td")).map((td) => td.textContent.trim())
+      )
+    : [];
 
-      <div class="no-print">
-        <button onclick="window.print()">Сохранить как PDF</button>
-      </div>
-    </body>
-    </html>
-  `);
-
-  printWindow.document.close();
+  printHtml(buildReportHtml(title, period, headers, rows));
 }
 
-// ============================================================
-//  ЭКСПОРТ
 // ============================================================
 
 window.renderReports = renderReports;
