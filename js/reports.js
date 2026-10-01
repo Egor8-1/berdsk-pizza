@@ -235,7 +235,7 @@ async function showFinancialReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('financial', ${JSON.stringify(tableRows)})">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF('financial', decodeURIComponent('${encodeURIComponent(JSON.stringify(tableRows))}'))">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -280,7 +280,7 @@ async function showStatusReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('statuses', ${JSON.stringify(statusData)})">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF('statuses', decodeURIComponent('${encodeURIComponent(JSON.stringify(statusData))}'))">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -315,7 +315,7 @@ async function showPointsReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('points', ${JSON.stringify(pointData)})">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF('points', decodeURIComponent('${encodeURIComponent(JSON.stringify(pointData))}'))">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -366,7 +366,7 @@ async function showProductsReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('products', ${JSON.stringify(sortedProducts)})">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF('products', decodeURIComponent('${encodeURIComponent(JSON.stringify(sortedProducts))}'))">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -430,7 +430,7 @@ async function showPeriodsReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('periods', ${JSON.stringify(dayRows)})">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF('periods', decodeURIComponent('${encodeURIComponent(JSON.stringify(dayRows))}'))">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -468,7 +468,7 @@ async function showBonusesReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('bonuses', ${JSON.stringify(tableRows)})">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF('bonuses', decodeURIComponent('${encodeURIComponent(JSON.stringify(tableRows))}'))">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -514,7 +514,7 @@ async function showReturnsReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('returns', ${JSON.stringify(tableRows)})">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF('returns', decodeURIComponent('${encodeURIComponent(JSON.stringify(tableRows))}'))">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -554,7 +554,7 @@ async function showDeliveryReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('delivery', ${JSON.stringify(tableRows)})">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF('delivery', decodeURIComponent('${encodeURIComponent(JSON.stringify(tableRows))}'))">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -592,7 +592,7 @@ async function showCouriersReport(container, from, to) {
       </div>
       
       <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn btn--primary" onclick="generateReportPDF('couriers', ${JSON.stringify(courierData)})">Скачать PDF</button>
+        <button class="btn btn--primary" onclick="generateReportPDF('couriers', decodeURIComponent('${encodeURIComponent(JSON.stringify(courierData))}'))">Скачать PDF</button>
         <button class="btn btn--secondary" onclick="renderReports()">Назад</button>
       </div>
     </div>
@@ -664,7 +664,23 @@ function generateReportPDF(reportType, rows) {
   const period = getDateRangeText();
   const now = new Date().toLocaleString("ru-RU");
 
+  // Защита от спецсимволов в данных
+  let parsedRows = rows;
+  if (typeof rows === 'string') {
+    try {
+      parsedRows = JSON.parse(rows);
+    } catch (e) {
+      parsedRows = [];
+    }
+  }
+  const safeRows = Array.isArray(parsedRows) ? parsedRows : [];
+  const safeHeaders = Array.isArray(headers) ? headers : [];
+
   const printWindow = window.open("", "_blank", "width=900,height=700");
+  if (!printWindow) {
+    alert("Не удалось открыть окно. Разрешите всплывающие окна для этого сайта.");
+    return;
+  }
 
   printWindow.document.write(`
     <!DOCTYPE html>
@@ -761,14 +777,14 @@ function generateReportPDF(reportType, rows) {
       </div>
 
       ${
-        rows && rows.length > 0
+        safeRows.length > 0
           ? `
         <table>
           <thead>
-            <tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr>
+            <tr>${safeHeaders.map((h) => `<th>${h}</th>`).join("")}</tr>
           </thead>
           <tbody>
-            ${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}
+            ${safeRows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}
           </tbody>
         </table>
       `
